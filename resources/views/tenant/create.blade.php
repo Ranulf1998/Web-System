@@ -12,13 +12,17 @@
 
     @php
         $successMessage = session('success') ?? ($success ?? null);
+        $tenantSubdomain = session('tenant_subdomain') ?? ($tenant_subdomain ?? null);
         $tenantLoginUrl = session('tenant_login_url') ?? ($tenant_login_url ?? null);
+        if (! $tenantLoginUrl && $tenantSubdomain && config('app.domain') !== 'localhost') {
+            $tenantLoginUrl = url("http://{$tenantSubdomain}." . config('app.domain') . '/login');
+        }
         $warningMessage = session('warning') ?? ($warning ?? null);
     @endphp
 
-    @if ($successMessage && $tenantLoginUrl)
+    @if ($tenantLoginUrl)
         <div class="mb-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-            <div class="font-semibold">{{ $successMessage }}</div>
+            <div class="font-semibold">{{ $successMessage ?? 'Shop created successfully.' }}</div>
             @if ($warningMessage)
                 <div class="mt-1">{{ $warningMessage }}</div>
             @endif
@@ -80,10 +84,13 @@
                             <div class="font-semibold">Standard Plan</div>
                             <ul class="list-disc ml-5 mt-2 text-sm text-gray-700">
                                 <li>POS system</li>
-                                <li>Product &amp; inventory management</li>
-                                <li>Sales reports &amp; dashboard</li>
-                                <li>Up to 5 staff accounts</li>
-                                <li>Inventory alerts</li>
+                                <li>Product management</li>
+                                <li>Order queue</li>
+                                <li>Brewing guides</li>
+                                <li>Inventory management</li>
+                                <li>Sales reports</li>
+                                <li>Branding customization</li>
+                                <li>Up to 3 staff accounts</li>
                             </ul>
                         </div>
                         <div class="text-right">

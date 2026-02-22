@@ -20,11 +20,36 @@ class Tenant extends Model
         return $this->hasMany(User::class);
     }
 
+    public function planKey(): string
+    {
+        $plan = strtolower(trim((string) $this->plan));
+
+        if (str_contains($plan, 'starter')) {
+            return 'starter';
+        }
+
+        if (str_contains($plan, 'standard')) {
+            return 'standard';
+        }
+
+        if (str_contains($plan, 'business')) {
+            return 'business';
+        }
+
+        return $plan;
+    }
+
     // Helper to check if tenant can use a feature based on plan
     public function canUseFeature($feature)
     {
+        $planKey = $this->planKey();
+
+        if ($planKey === 'business') {
+            return true;
+        }
+
         $plans = config('plans');
-        return in_array($feature, $plans[$this->plan]['features'] ?? []);
+        return in_array($feature, $plans[$planKey]['features'] ?? [], true);
     }
 
     public function ensureRolesAndPermissions(): void
@@ -33,7 +58,9 @@ class Tenant extends Model
             'use pos',
             'create orders',
             'process payments',
+            'manage brewing orders',
             'view products',
+            'view brewing guides',
             'manage products',
             'view reports',
             'manage users',
@@ -66,6 +93,17 @@ class Tenant extends Model
             'create orders',
             'process payments',
             'view products',
+            'view brewing guides',
+        ]);
+
+        $baristaRole = Role::firstOrCreate([
+            'name' => 'Barista',
+            'guard_name' => 'web',
+            'tenant_id' => $this->id,
+        ]);
+        $baristaRole->syncPermissions([
+            'manage brewing orders',
+            'view brewing guides',
         ]);
     }
 }

@@ -1,4 +1,9 @@
 <nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
+    @php
+        $roleNames = auth()->user()?->roles?->pluck('name')->all() ?? [];
+        $permissionNames = auth()->user()?->getAllPermissions()?->pluck('name')->all() ?? [];
+        $isOwner = in_array('Owner', $roleNames, true);
+    @endphp
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
@@ -23,7 +28,7 @@
                     <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                         {{ __('Dashboard') }}
                     </x-nav-link>
-                    @if (Route::has('brewing-guides.index'))
+                    @if(tenant()->canUseFeature('brewing_guides') && Route::has('brewing-guides.index') && ($isOwner || in_array('view brewing guides', $permissionNames, true)))
                         <x-nav-link :href="route('brewing-guides.index')" :active="request()->routeIs('brewing-guides.*')">
                             {{ __('How to Brew') }}
                         </x-nav-link>
@@ -33,7 +38,27 @@
                             {{ __('Inventory') }}
                         </x-nav-link>
                     @endif
-                    @can('manage users')
+                    @if (Route::has('products.index') && ($isOwner || in_array('view products', $permissionNames, true) || in_array('manage products', $permissionNames, true)))
+                        <x-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
+                            {{ __('Products') }}
+                        </x-nav-link>
+                    @endif
+                    @if (tenant()->canUseFeature('pos') && Route::has('pos.index') && ($isOwner || in_array('use pos', $permissionNames, true)))
+                        <x-nav-link :href="route('pos.index')" :active="request()->routeIs('pos.*')">
+                            {{ __('POS') }}
+                        </x-nav-link>
+                    @endif
+                    @if (tenant()->canUseFeature('order_queue') && Route::has('orders.index') && ($isOwner || in_array('manage brewing orders', $permissionNames, true)))
+                        <x-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
+                            {{ __('Orders') }}
+                        </x-nav-link>
+                    @endif
+                    @if (tenant()->canUseFeature('sales_reports') && Route::has('sales.index') && ($isOwner || in_array('view reports', $permissionNames, true)))
+                        <x-nav-link :href="route('sales.index')" :active="request()->routeIs('sales.*')">
+                            {{ __('Sales Report') }}
+                        </x-nav-link>
+                    @endif
+                    @if (($isOwner || in_array('manage users', $permissionNames, true)) && (config('plans.' . tenant()->planKey() . '.max_users') === null || config('plans.' . tenant()->planKey() . '.max_users') > 1))
                         @if (Route::has('users.index'))
                             <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                                 {{ __('Staff') }}
@@ -44,7 +69,12 @@
                                 {{ __('Roles') }}
                             </x-nav-link>
                         @endif
-                    @endcan
+                        @if (Route::has('accountability.index'))
+                            <x-nav-link :href="route('accountability.index')" :active="request()->routeIs('accountability.*')">
+                                {{ __('User Logs') }}
+                            </x-nav-link>
+                        @endif
+                    @endif
                 </div>
             </div>
 
@@ -67,11 +97,11 @@
                         <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Profile') }}
                         </x-dropdown-link>
-                        @can('manage users')
+                        @if(tenant()->canUseFeature('branding') && ($isOwner || in_array('manage users', $permissionNames, true)))
                             <x-dropdown-link :href="route('branding.edit')">
                                 {{ __('Branding') }}
                             </x-dropdown-link>
-                        @endcan
+                        @endif
 
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
@@ -105,7 +135,7 @@
             <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                 {{ __('Dashboard') }}
             </x-responsive-nav-link>
-            @if (Route::has('brewing-guides.index'))
+            @if(tenant()->canUseFeature('brewing_guides') && Route::has('brewing-guides.index') && ($isOwner || in_array('view brewing guides', $permissionNames, true)))
                 <x-responsive-nav-link :href="route('brewing-guides.index')" :active="request()->routeIs('brewing-guides.*')">
                     {{ __('How to Brew') }}
                 </x-responsive-nav-link>
@@ -115,7 +145,27 @@
                     {{ __('Inventory') }}
                 </x-responsive-nav-link>
             @endif
-            @can('manage users')
+            @if (Route::has('products.index') && ($isOwner || in_array('view products', $permissionNames, true) || in_array('manage products', $permissionNames, true)))
+                <x-responsive-nav-link :href="route('products.index')" :active="request()->routeIs('products.*')">
+                    {{ __('Products') }}
+                </x-responsive-nav-link>
+            @endif
+            @if (tenant()->canUseFeature('pos') && Route::has('pos.index') && ($isOwner || in_array('use pos', $permissionNames, true)))
+                <x-responsive-nav-link :href="route('pos.index')" :active="request()->routeIs('pos.*')">
+                    {{ __('POS') }}
+                </x-responsive-nav-link>
+            @endif
+            @if (tenant()->canUseFeature('order_queue') && Route::has('orders.index') && ($isOwner || in_array('manage brewing orders', $permissionNames, true)))
+                <x-responsive-nav-link :href="route('orders.index')" :active="request()->routeIs('orders.*')">
+                    {{ __('Orders') }}
+                </x-responsive-nav-link>
+            @endif
+            @if (tenant()->canUseFeature('sales_reports') && Route::has('sales.index') && ($isOwner || in_array('view reports', $permissionNames, true)))
+                <x-responsive-nav-link :href="route('sales.index')" :active="request()->routeIs('sales.*')">
+                    {{ __('Sales Report') }}
+                </x-responsive-nav-link>
+            @endif
+            @if (($isOwner || in_array('manage users', $permissionNames, true)) && (config('plans.' . tenant()->planKey() . '.max_users') === null || config('plans.' . tenant()->planKey() . '.max_users') > 1))
                 @if (Route::has('users.index'))
                     <x-responsive-nav-link :href="route('users.index')" :active="request()->routeIs('users.*')">
                         {{ __('Staff') }}
@@ -126,7 +176,12 @@
                         {{ __('Roles') }}
                     </x-responsive-nav-link>
                 @endif
-            @endcan
+                @if (Route::has('accountability.index'))
+                    <x-responsive-nav-link :href="route('accountability.index')" :active="request()->routeIs('accountability.*')">
+                        {{ __('Accountability') }}
+                    </x-responsive-nav-link>
+                @endif
+            @endif
         </div>
 
         <!-- Responsive Settings Options -->
@@ -140,11 +195,11 @@
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
-                @can('manage users')
+                @if(tenant()->canUseFeature('branding') && ($isOwner || in_array('manage users', $permissionNames, true)))
                     <x-responsive-nav-link :href="route('branding.edit')">
                         {{ __('Branding') }}
                     </x-responsive-nav-link>
-                @endcan
+                @endif
 
                 <!-- Authentication -->
                 <form method="POST" action="{{ route('logout') }}">

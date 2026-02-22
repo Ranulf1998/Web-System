@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -11,6 +12,8 @@ class TenantBrandingController extends Controller
 {
     public function edit(): View
     {
+        abort_unless(tenant()->canUseFeature('branding'), 403, 'Branding customization is not available on your current plan.');
+        
         $tenant = tenant();
         $branding = $tenant->settings['branding'] ?? [];
 
@@ -21,7 +24,10 @@ class TenantBrandingController extends Controller
 
     public function update(Request $request): RedirectResponse
     {
+        abort_unless(tenant()->canUseFeature('branding'), 403, 'Branding customization is not available on your current plan.');
+        
         $tenant = tenant();
+        $logoChanged = false;
 
         $data = $request->validate([
             'primary_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
@@ -49,6 +55,7 @@ class TenantBrandingController extends Controller
         if ($request->boolean('remove_logo') && !empty($branding['logo_path'])) {
             Storage::disk('public')->delete($branding['logo_path']);
             unset($branding['logo_path']);
+            $logoChanged = true;
         }
 
         if ($request->hasFile('logo')) {
@@ -62,11 +69,24 @@ class TenantBrandingController extends Controller
             }
 
             $branding['logo_path'] = $path;
+            $logoChanged = true;
         }
 
         $settings['branding'] = $branding;
         $tenant->settings = $settings;
         $tenant->save();
+
+        ActivityLogger::log(
+            'branding.updated',
+            'Updated tenant branding settings',
+            $tenant,
+            [
+                'primary_color' => $branding['primary'] ?? null,
+                'accent_color' => $branding['accent'] ?? null,
+                'background_color' => $branding['background'] ?? null,
+                'logo_changed' => $logoChanged,
+            ]
+        );
 
         return redirect()
             ->route('branding.edit')

@@ -23,7 +23,9 @@ class TenantController extends Controller
             'use pos',
             'create orders',
             'process payments',
+            'manage brewing orders',
             'view products',
+            'view brewing guides',
             'manage products',
             'view reports',
             'manage users',
@@ -56,6 +58,7 @@ class TenantController extends Controller
             'create orders',
             'process payments',
             'view products',
+            'view brewing guides',
         ]);
 
         return $ownerRole;
@@ -132,6 +135,8 @@ class TenantController extends Controller
             'password' => 'required|confirmed|min:8',
         ]);
 
+        $data['plan'] = strtolower(trim((string) $data['plan']));
+
         $tenant = DB::transaction(function () use ($data) {
             $tenant = Tenant::create([
                 'name' => $data['shop_name'],
@@ -148,6 +153,8 @@ class TenantController extends Controller
 
             $ownerRole = $this->seedTenantRoles($tenant);
             $user->assignRole($ownerRole);
+
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
 
             return $tenant;
         });
@@ -166,6 +173,6 @@ class TenantController extends Controller
             $payload['warning'] = 'Automatic redirect could not be completed locally. Click the login link below.';
         }
 
-        return view('tenant.create', $payload);
+        return redirect()->route('tenant.register')->with($payload);
     }
 }

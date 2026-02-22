@@ -44,8 +44,8 @@
                         <div class="mt-4">
                             <x-input-label for="image" :value="__('Product Image (leave empty to keep current)')" />
                             <input id="image" type="file" name="image" class="block mt-1 w-full" />
-                            @if($product->image)
-                                <p class="mt-2">Current: <img src="{{ asset('storage/' . $product->image) }}" class="h-10 w-10 object-cover"></p>
+                            @if($product->image_path)
+                                <p class="mt-2">Current: <img src="{{ route('tenant.files.show', ['path' => $product->image_path]) }}" class="h-10 w-10 object-cover"></p>
                             @endif
                             <x-input-error :messages="$errors->get('image')" class="mt-2" />
                         </div>

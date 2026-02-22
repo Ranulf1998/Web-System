@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,8 +23,9 @@ class PosController extends Controller
     public function index()
     {
         $products = Product::orderBy('name')->get();
+        $cart = $this->normalizeCart(request()->session()->get('pos_cart', []));
 
-        return view('pos.index', compact('products'));
+        return view('pos.index', compact('products', 'cart'));
     }
 
     public function addItem(Request $request): JsonResponse
@@ -87,11 +89,11 @@ class PosController extends Controller
             $total += $product->price * $item['quantity'];
         }
 
-        DB::transaction(function () use ($items, $products, $total) {
+        $order = DB::transaction(function () use ($items, $products, $total) {
             $order = Order::create([
                 'user_id' => auth()->id(),
                 'total' => $total,
-                'status' => 'paid',
+                'status' => 'pending',
             ]);
 
             foreach ($items as $item) {
@@ -105,7 +107,19 @@ class PosController extends Controller
 
                 $product->decrement('stock', $item['quantity']);
             }
+
+            return $order;
         });
+
+        ActivityLogger::log(
+            'order.created',
+            'Processed POS order #' . $order->id,
+            $order,
+            [
+                'total' => (float) $order->total,
+                'items_count' => count($items),
+            ]
+        );
 
         $request->session()->forget('pos_cart');
 

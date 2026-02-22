@@ -3,7 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Product;
+use App\Support\ActivityLogger;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\View\View;
 
 class ProductController extends Controller
 {
@@ -26,15 +30,15 @@ class ProductController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(): View
     {
-        //
+        return view('products.create');
     }
 
     /**
      * Store a newly created resource in storage.
      */
-    public function store(Request $request)
+    public function store(Request $request): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -46,10 +50,16 @@ class ProductController extends Controller
 
         if ($request->hasFile('image')) {
             $data['image_path'] = $request->file('image')
-                ->store('public/tenant_' . tenant()->id . '/products');
+                ->store('tenant_' . tenant()->id . '/products', 'public');
         }
 
-        Product::create($data);
+        $product = Product::create($data);
+
+        ActivityLogger::log(
+            'product.created',
+            'Created product ' . $product->name,
+            $product
+        );
 
         return redirect()->route('products.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'Product created');
@@ -66,15 +76,15 @@ class ProductController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Product $product)
+    public function edit(Product $product): View
     {
-        //
+        return view('products.edit', compact('product'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Product $product)
+    public function update(Request $request, Product $product): RedirectResponse
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -85,11 +95,21 @@ class ProductController extends Controller
         ]);
 
         if ($request->hasFile('image')) {
+            if (!empty($product->image_path)) {
+                Storage::disk('public')->delete($product->image_path);
+            }
+
             $data['image_path'] = $request->file('image')
-                ->store('public/tenant_' . tenant()->id . '/products');
+                ->store('tenant_' . tenant()->id . '/products', 'public');
         }
 
         $product->update($data);
+
+        ActivityLogger::log(
+            'product.updated',
+            'Updated product ' . $product->name,
+            $product
+        );
 
         return redirect()->route('products.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'Product updated');
@@ -98,8 +118,24 @@ class ProductController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Product $product)
+    public function destroy(Product $product): RedirectResponse
     {
-        //
+        $productName = $product->name;
+
+        if (!empty($product->image_path)) {
+            Storage::disk('public')->delete($product->image_path);
+        }
+
+        $product->delete();
+
+        ActivityLogger::log(
+            'product.deleted',
+            'Deleted product ' . $productName,
+            null,
+            ['name' => $productName]
+        );
+
+        return redirect()->route('products.index', ['subdomain' => request()->route('subdomain')])
+            ->with('status', 'Product deleted');
     }
 }

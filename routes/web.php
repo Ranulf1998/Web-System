@@ -10,6 +10,8 @@ use App\Http\Controllers\UsersController;
 use App\Http\Controllers\RolesController;
 use App\Http\Controllers\TenantBrandingController;
 use App\Http\Controllers\BrewingGuideController;
+use App\Http\Controllers\AccountabilityController;
+use App\Http\Controllers\SuperAdminController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -27,6 +29,14 @@ Route::domain(config('app.domain'))->group(function () {
     Route::get('/register', [TenantController::class, 'create'])->name('tenant.register');
     Route::post('/register', [TenantController::class, 'store']);
     Route::get('/shop-login', [TenantController::class, 'shopLogin'])->name('tenant.shop-login');
+
+    Route::get('/super-admin/login', [SuperAdminController::class, 'showLoginForm'])->name('super-admin.login');
+    Route::post('/super-admin/login', [SuperAdminController::class, 'login'])->name('super-admin.login.store');
+
+    Route::middleware('auth')->group(function () {
+        Route::get('/super-admin/dashboard', [SuperAdminController::class, 'dashboard'])->name('super-admin.dashboard');
+        Route::post('/super-admin/logout', [SuperAdminController::class, 'logout'])->name('super-admin.logout');
+    });
 
     // Optional: super admin routes can go here (with separate middleware)
 });
@@ -107,8 +117,12 @@ Route::domain('{subdomain}.' . config('app.domain'))
             // Tenant-specific resource routes (products, orders, inventory, etc.)
             Route::resource('products', App\Http\Controllers\ProductController::class);
             Route::resource('orders', OrderController::class);
+            Route::get('/sales', [App\Http\Controllers\SalesController::class, 'index'])->name('sales.index');
             Route::resource('users', UsersController::class)->except(['show']);
             Route::resource('roles', RolesController::class)->except(['show']);
+            Route::get('/accountability', [AccountabilityController::class, 'index'])
+                ->middleware('can:manage users')
+                ->name('accountability.index');
 
             Route::get('/branding', [TenantBrandingController::class, 'edit'])
                 ->middleware('can:manage users')

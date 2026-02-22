@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Role;
+use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -14,6 +15,11 @@ class RolesController extends Controller
     public function __construct()
     {
         $this->middleware('permission:manage users');
+        
+        $this->middleware(function ($request, $next) {
+            abort_unless(tenant()->max_users === null || tenant()->max_users > 1, 403, 'Role management is not available on your current plan.');
+            return $next($request);
+        });
     }
 
     protected function resolveRole(string $role): Role
@@ -64,6 +70,13 @@ class RolesController extends Controller
 
         $role->syncPermissions($data['permissions'] ?? []);
 
+        ActivityLogger::log(
+            'role.created',
+            'Created role ' . $role->name,
+            $role,
+            ['permissions_count' => count($data['permissions'] ?? [])]
+        );
+
         return redirect()->route('roles.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'Role created');
     }
@@ -97,6 +110,13 @@ class RolesController extends Controller
 
         $role->syncPermissions($data['permissions'] ?? []);
 
+        ActivityLogger::log(
+            'role.updated',
+            'Updated role ' . $role->name,
+            $role,
+            ['permissions_count' => count($data['permissions'] ?? [])]
+        );
+
         return redirect()->route('roles.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'Role updated');
     }
@@ -104,7 +124,15 @@ class RolesController extends Controller
     public function destroy(string $subdomain, string $role): RedirectResponse
     {
         $role = $this->resolveRole($role);
+        $roleName = $role->name;
         $role->delete();
+
+        ActivityLogger::log(
+            'role.deleted',
+            'Deleted role ' . $roleName,
+            null,
+            ['name' => $roleName]
+        );
 
         return redirect()->route('roles.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'Role deleted');

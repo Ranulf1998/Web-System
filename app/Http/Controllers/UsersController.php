@@ -8,6 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
+use App\Support\ActivityLogger;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -19,7 +20,9 @@ class UsersController extends Controller
             'use pos',
             'create orders',
             'process payments',
+            'manage brewing orders',
             'view products',
+            'view brewing guides',
             'manage products',
             'view reports',
             'manage users',
@@ -52,6 +55,17 @@ class UsersController extends Controller
             'create orders',
             'process payments',
             'view products',
+            'view brewing guides',
+        ]);
+
+        $baristaRole = Role::firstOrCreate([
+            'name' => 'Barista',
+            'guard_name' => 'web',
+            'tenant_id' => tenant()->id,
+        ]);
+        $baristaRole->syncPermissions([
+            'manage brewing orders',
+            'view brewing guides',
         ]);
     }
 
@@ -59,6 +73,13 @@ class UsersController extends Controller
     {
         $this->middleware('permission:manage users');
         $this->middleware('permission:delete users')->only(['destroy']);
+        
+        $this->middleware(function ($request, $next) {
+            $planKey = tenant()->planKey();
+            $maxUsers = config('plans.' . $planKey . '.max_users');
+            abort_unless($maxUsers === null || $maxUsers > 1, 403, 'Staff management is not available on your current plan.');
+            return $next($request);
+        });
     }
 
     public function index(): View
@@ -79,8 +100,20 @@ class UsersController extends Controller
     public function store(Request $request): RedirectResponse
     {
         $this->ensureTenantRoles();
-        $maxUsers = config('plans.' . tenant()->plan . '.max_users');
-        if ($maxUsers !== null && User::count() >= $maxUsers) {
+
+        if (tenant()->planKey() === 'standard') {
+            $staffCount = User::whereDoesntHave('roles', function ($query) {
+                $query->where('name', 'Owner');
+            })->count();
+
+            if ($staffCount >= 3) {
+                return back()->withErrors(['limit' => 'Standard plan allows up to 3 staff accounts.']);
+            }
+        }
+
+        $planKey = tenant()->planKey();
+        $maxUsers = config('plans.' . $planKey . '.max_users');
+        if ($planKey !== 'standard' && $maxUsers !== null && User::count() >= $maxUsers) {
             return back()->withErrors(['limit' => 'User limit reached for your plan']);
         }
 
@@ -101,6 +134,13 @@ class UsersController extends Controller
         ]);
 
         $user->assignRole($role);
+
+        ActivityLogger::log(
+            'user.created',
+            'Created staff account for ' . $user->name,
+            $user,
+            ['role' => $role->name]
+        );
 
         return redirect()->route('users.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'User created');
@@ -142,6 +182,13 @@ class UsersController extends Controller
         $user->syncRoles([$role]);
         $user->syncPermissions($data['permissions'] ?? []);
 
+        ActivityLogger::log(
+            'user.updated',
+            'Updated staff account for ' . $user->name,
+            $user,
+            ['role' => $role->name]
+        );
+
         return redirect()->route('users.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'User updated');
     }
@@ -149,7 +196,15 @@ class UsersController extends Controller
     public function destroy(string $subdomain, string $user): RedirectResponse
     {
         $user = User::findOrFail($user);
+        $userName = $user->name;
         $user->delete();
+
+        ActivityLogger::log(
+            'user.deleted',
+            'Deleted staff account for ' . $userName,
+            null,
+            ['name' => $userName]
+        );
 
         return redirect()->route('users.index', ['subdomain' => request()->route('subdomain')])
             ->with('status', 'User deleted');

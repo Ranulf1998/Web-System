@@ -9,6 +9,7 @@ return [
             'product_management',
             'basic_sales_tracking',
             'basic_reports',
+            'order_queue',
         ],
         'max_users' => 1,
     ],
@@ -18,12 +19,13 @@ return [
         'features' => [
             'pos',
             'product_management',
+            'order_queue',
+            'brewing_guides',
             'inventory_management',
             'sales_reports',
-            'sales_dashboard',
-            'inventory_alerts',
+            'branding',
         ],
-        'max_users' => 5,
+        'max_users' => 3,
     ],
     'business' => [
         'name' => 'Business',
@@ -31,6 +33,8 @@ return [
         'features' => [
             'pos',
             'product_management',
+            'order_queue',
+            'brewing_guides',
             'inventory_management',
             'sales_reports',
             'sales_dashboard',
@@ -38,6 +42,7 @@ return [
             'advanced_analytics',
             'multi_branch_support',
             'priority_support',
+            'branding',
         ],
         'max_users' => null, // unlimited
     ],
