@@ -11,9 +11,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
+use App\Services\TenantDatabaseProvisioner;
 
 class TenantController extends Controller
 {
@@ -122,7 +125,7 @@ class TenantController extends Controller
         return redirect()->to(route('login', ['subdomain' => $data['subdomain']]));
     }
 
-    public function store(Request $request): ViewContract|RedirectResponse
+    public function store(Request $request, TenantDatabaseProvisioner $databaseProvisioner): ViewContract|RedirectResponse
     {
         $allowedPlans = implode(',', array_keys(config('plans')));
 
@@ -130,34 +133,82 @@ class TenantController extends Controller
             'shop_name' => 'required',
             'subdomain' => 'required|unique:tenants,subdomain|alpha_dash',
             'plan' => "required|in:{$allowedPlans}",
+            'payment_method' => 'required|in:gcash,bank',
+            'subscription_months' => 'required|integer|min:1|max:24',
             'name' => 'required',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|confirmed|min:8',
         ]);
 
+        $data['subdomain'] = strtolower(Str::slug((string) $data['subdomain']));
         $data['plan'] = strtolower(trim((string) $data['plan']));
+        $data['payment_method'] = strtolower(trim((string) $data['payment_method']));
+        $data['subscription_months'] = (int) $data['subscription_months'];
 
-        $tenant = DB::transaction(function () use ($data) {
+        $monthlyPlanPrice = (float) config('plans.' . $data['plan'] . '.price', 0);
+        $totalSubscriptionAmount = $monthlyPlanPrice * $data['subscription_months'];
+
+        $leaseStart = Carbon::now();
+        $leaseEnd = $leaseStart->copy()->addMonths($data['subscription_months']);
+
+        $databaseName = $databaseProvisioner->generateDatabaseName($data['subdomain']);
+        $tenant = null;
+        $databaseCreated = false;
+
+        try {
             $tenant = Tenant::create([
                 'name' => $data['shop_name'],
                 'subdomain' => $data['subdomain'],
                 'plan' => $data['plan'],
+                'lease_starts_at' => $leaseStart,
+                'lease_ends_at' => $leaseEnd,
+                'settings' => [
+                    'subscription' => [
+                        'payment_method' => $data['payment_method'],
+                        'months' => $data['subscription_months'],
+                        'monthly_price' => $monthlyPlanPrice,
+                        'total_amount' => $totalSubscriptionAmount,
+                        'currency' => 'PHP',
+                    ],
+                    'database' => [
+                        'host' => config('tenancy.tenant_host'),
+                        'port' => config('tenancy.tenant_port'),
+                        'database' => $databaseName,
+                        'username' => config('tenancy.tenant_username'),
+                        'password' => config('tenancy.tenant_password'),
+                    ],
+                ],
             ]);
 
-            $user = User::create([
-                'tenant_id' => $tenant->id,
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($data['password']),
-            ]);
+            $databaseProvisioner->createDatabase($databaseName);
+            $databaseCreated = true;
 
-            $ownerRole = $this->seedTenantRoles($tenant);
-            $user->assignRole($ownerRole);
+            $databaseProvisioner->runTenantMigrations($tenant);
 
-            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            DB::connection('central')->transaction(function () use ($data, $tenant) {
+                $user = User::create([
+                    'tenant_id' => $tenant->id,
+                    'name' => $data['name'],
+                    'email' => $data['email'],
+                    'password' => Hash::make($data['password']),
+                ]);
 
-            return $tenant;
-        });
+                $ownerRole = $this->seedTenantRoles($tenant);
+                $user->assignRole($ownerRole);
+
+                app(PermissionRegistrar::class)->forgetCachedPermissions();
+            });
+        } catch (\Throwable $exception) {
+            if ($databaseCreated) {
+                $databaseProvisioner->dropDatabase($databaseName);
+            }
+
+            if ($tenant && $tenant->exists) {
+                $tenant->delete();
+            }
+
+            throw $exception;
+        }
 
         $tenantLoginUrl = route('login', ['subdomain' => $tenant->subdomain]);
 

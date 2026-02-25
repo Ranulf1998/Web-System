@@ -9,6 +9,8 @@ class Product extends Model
 {
     use BelongsToTenant;
 
+    protected $connection = 'tenant';
+
     protected $fillable = [
         'name',
         'description',

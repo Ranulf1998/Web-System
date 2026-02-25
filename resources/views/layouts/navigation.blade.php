@@ -75,6 +75,11 @@
                             </x-nav-link>
                         @endif
                     @endif
+                    @if (($isOwner || in_array('manage users', $permissionNames, true)) && Route::has('support-tickets.create'))
+                        <x-nav-link :href="route('support-tickets.create')" :active="request()->routeIs('support-tickets.*')">
+                            {{ __('Support') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -181,6 +186,11 @@
                         {{ __('Accountability') }}
                     </x-responsive-nav-link>
                 @endif
+            @endif
+            @if (($isOwner || in_array('manage users', $permissionNames, true)) && Route::has('support-tickets.create'))
+                <x-responsive-nav-link :href="route('support-tickets.create')" :active="request()->routeIs('support-tickets.*')">
+                    {{ __('Support') }}
+                </x-responsive-nav-link>
             @endif
         </div>
 

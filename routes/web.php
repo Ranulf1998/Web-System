@@ -12,6 +12,7 @@ use App\Http\Controllers\TenantBrandingController;
 use App\Http\Controllers\BrewingGuideController;
 use App\Http\Controllers\AccountabilityController;
 use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\SupportTicketController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -35,6 +36,13 @@ Route::domain(config('app.domain'))->group(function () {
 
     Route::middleware('auth')->group(function () {
         Route::get('/super-admin/dashboard', [SuperAdminController::class, 'dashboard'])->name('super-admin.dashboard');
+        Route::post('/super-admin/tenants/{tenant}/suspend', [SuperAdminController::class, 'suspendTenant'])->name('super-admin.tenants.suspend');
+        Route::post('/super-admin/tenants/{tenant}/unsuspend', [SuperAdminController::class, 'unsuspendTenant'])->name('super-admin.tenants.unsuspend');
+        Route::post('/super-admin/tenants/{tenant}/subscription/renew', [SuperAdminController::class, 'renewTenantSubscription'])->name('super-admin.tenants.subscription.renew');
+        Route::patch('/super-admin/support-tickets/{supportTicket}/status', [SuperAdminController::class, 'updateSupportTicketStatus'])->name('super-admin.support-tickets.status.update');
+        Route::post('/super-admin/central-admins', [SuperAdminController::class, 'storeCentralAdmin'])->name('super-admin.central-admins.store');
+        Route::patch('/super-admin/central-admins/{user}/role', [SuperAdminController::class, 'updateCentralAdminRole'])->name('super-admin.central-admins.role.update');
+        Route::delete('/super-admin/central-admins/{user}', [SuperAdminController::class, 'destroyCentralAdmin'])->name('super-admin.central-admins.destroy');
         Route::post('/super-admin/logout', [SuperAdminController::class, 'logout'])->name('super-admin.logout');
     });
 
@@ -131,7 +139,14 @@ Route::domain('{subdomain}.' . config('app.domain'))
                 ->middleware('can:manage users')
                 ->name('branding.update');
 
-            Route::resource('brewing-guides', BrewingGuideController::class);
+            Route::resource('brewing-guides', BrewingGuideController::class)
+                ->parameters(['brewing-guides' => 'brewingGuide']);
+            Route::get('/support/tickets', [SupportTicketController::class, 'create'])
+                ->middleware('can:manage users')
+                ->name('support-tickets.create');
+            Route::post('/support/tickets', [SupportTicketController::class, 'store'])
+                ->middleware('can:manage users')
+                ->name('support-tickets.store');
             // ... more routes
         });
 

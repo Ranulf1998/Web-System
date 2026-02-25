@@ -10,6 +10,8 @@ class BrewingGuide extends Model
 {
     use BelongsToTenant;
 
+    protected $connection = 'tenant';
+
     protected $fillable = [
         'tenant_id',
         'title',

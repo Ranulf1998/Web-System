@@ -9,6 +9,8 @@ class ActivityLog extends Model
 {
     use BelongsToTenant;
 
+    protected $connection = 'tenant';
+
     protected $fillable = [
         'user_id',
         'action',

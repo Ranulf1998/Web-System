@@ -1,8 +1,13 @@
 <?php
 
 if (!function_exists('tenant')) {
-    function tenant()
+    /**
+     * Get current tenant from container.
+     */
+    function tenant(): ?\App\Models\Tenant
     {
-        return app()->bound('tenant') ? app('tenant') : null;
+        $tenant = app()->bound('tenant') ? app('tenant') : null;
+
+        return $tenant instanceof \App\Models\Tenant ? $tenant : null;
     }
 }

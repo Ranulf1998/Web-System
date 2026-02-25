@@ -14,6 +14,9 @@
         $successMessage = session('success') ?? ($success ?? null);
         $tenantSubdomain = session('tenant_subdomain') ?? ($tenant_subdomain ?? null);
         $tenantLoginUrl = session('tenant_login_url') ?? ($tenant_login_url ?? null);
+        $plans = config('plans');
+        $defaultPlan = old('plan', 'starter');
+        $defaultMonths = max((int) old('subscription_months', 1), 1);
         if (! $tenantLoginUrl && $tenantSubdomain && config('app.domain') !== 'localhost') {
             $tenantLoginUrl = url("http://{$tenantSubdomain}." . config('app.domain') . '/login');
         }
@@ -72,8 +75,8 @@
                             </ul>
                         </div>
                         <div class="text-right">
-                            <div class="font-semibold">₱500 / month</div>
-                            <input class="mt-3" type="radio" name="plan" value="starter" {{ old('plan', 'starter') === 'starter' ? 'checked' : '' }}>
+                            <div class="font-semibold">₱{{ number_format($plans['starter']['price']) }} / month</div>
+                            <input class="mt-3 plan-option" type="radio" name="plan" value="starter" data-plan-price="{{ $plans['starter']['price'] }}" {{ $defaultPlan === 'starter' ? 'checked' : '' }}>
                         </div>
                     </div>
                 </label>
@@ -94,8 +97,8 @@
                             </ul>
                         </div>
                         <div class="text-right">
-                            <div class="font-semibold">₱1500 / month</div>
-                            <input class="mt-3" type="radio" name="plan" value="standard" {{ old('plan') === 'standard' ? 'checked' : '' }}>
+                            <div class="font-semibold">₱{{ number_format($plans['standard']['price']) }} / month</div>
+                            <input class="mt-3 plan-option" type="radio" name="plan" value="standard" data-plan-price="{{ $plans['standard']['price'] }}" {{ $defaultPlan === 'standard' ? 'checked' : '' }}>
                         </div>
                     </div>
                 </label>
@@ -113,14 +116,55 @@
                             </ul>
                         </div>
                         <div class="text-right">
-                            <div class="font-semibold">₱2000 / month</div>
-                            <input class="mt-3" type="radio" name="plan" value="business" {{ old('plan') === 'business' ? 'checked' : '' }}>
+                            <div class="font-semibold">₱{{ number_format($plans['business']['price']) }} / month</div>
+                            <input class="mt-3 plan-option" type="radio" name="plan" value="business" data-plan-price="{{ $plans['business']['price'] }}" {{ $defaultPlan === 'business' ? 'checked' : '' }}>
                         </div>
                     </div>
                 </label>
             </div>
 
             <x-input-error :messages="$errors->get('plan')" class="mt-2" />
+        </div>
+
+        <!-- Payment Method -->
+        <div class="mt-6">
+            <x-input-label :value="__('Payment Method')" />
+            <div class="mt-3 space-y-3">
+                <label class="block border rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold">Gcash</div>
+                        </div>
+                        <input type="radio" name="payment_method" value="gcash" {{ old('payment_method', 'gcash') === 'gcash' ? 'checked' : '' }}>
+                    </div>
+                </label>
+
+                <label class="block border rounded-lg p-4 cursor-pointer">
+                    <div class="flex items-center justify-between gap-4">
+                        <div>
+                            <div class="font-semibold">Bank</div>
+                        </div>
+                        <input type="radio" name="payment_method" value="bank" {{ old('payment_method') === 'bank' ? 'checked' : '' }}>
+                    </div>
+                </label>
+            </div>
+            <x-input-error :messages="$errors->get('payment_method')" class="mt-2" />
+        </div>
+
+        <!-- Subscription Months -->
+        <div class="mt-4">
+            <x-input-label for="subscription_months" :value="__('Number of Months')" />
+            <select id="subscription_months" name="subscription_months" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full">
+                @for ($month = 1; $month <= 24; $month++)
+                    <option value="{{ $month }}" {{ $defaultMonths === $month ? 'selected' : '' }}>{{ $month }} {{ $month === 1 ? 'month' : 'months' }}</option>
+                @endfor
+            </select>
+            <x-input-error :messages="$errors->get('subscription_months')" class="mt-2" />
+        </div>
+
+        <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+            <div><span class="font-semibold">Monthly Price:</span> <span id="monthly-price">₱0</span></div>
+            <div class="mt-1"><span class="font-semibold">Total Due:</span> <span id="total-price">₱0</span></div>
         </div>
 
         <!-- Owner Name -->
@@ -157,4 +201,39 @@
             </x-primary-button>
         </div>
     </form>
+
+    <script>
+        (() => {
+            const planInputs = document.querySelectorAll('.plan-option');
+            const monthsInput = document.getElementById('subscription_months');
+            const monthlyPriceTarget = document.getElementById('monthly-price');
+            const totalPriceTarget = document.getElementById('total-price');
+
+            if (!planInputs.length || !monthsInput || !monthlyPriceTarget || !totalPriceTarget) {
+                return;
+            }
+
+            const formatCurrency = (amount) => {
+                return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(amount);
+            };
+
+            const getSelectedPlanPrice = () => {
+                const selected = document.querySelector('.plan-option:checked');
+                return selected ? Number(selected.getAttribute('data-plan-price') || 0) : 0;
+            };
+
+            const updatePricing = () => {
+                const monthlyPrice = getSelectedPlanPrice();
+                const months = Number(monthsInput.value || 1);
+                const total = monthlyPrice * Math.max(months, 1);
+
+                monthlyPriceTarget.textContent = formatCurrency(monthlyPrice);
+                totalPriceTarget.textContent = formatCurrency(total);
+            };
+
+            planInputs.forEach((input) => input.addEventListener('change', updatePricing));
+            monthsInput.addEventListener('change', updatePricing);
+            updatePricing();
+        })();
+    </script>
 </x-guest-layout>

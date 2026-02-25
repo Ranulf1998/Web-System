@@ -9,10 +9,14 @@ use Spatie\Permission\PermissionRegistrar;
 
 class Tenant extends Model
 {
-    protected $fillable = ['name', 'subdomain', 'plan', 'settings'];
+    protected $connection = 'central';
+
+    protected $fillable = ['name', 'subdomain', 'plan', 'lease_starts_at', 'lease_ends_at', 'settings'];
 
     protected $casts = [
         'settings' => 'array',
+        'lease_starts_at' => 'datetime',
+        'lease_ends_at' => 'datetime',
     ];
 
     public function users()
@@ -54,6 +58,8 @@ class Tenant extends Model
 
     public function ensureRolesAndPermissions(): void
     {
+        $tenantId = (int) $this->getKey();
+
         $permissions = [
             'use pos',
             'create orders',
@@ -79,14 +85,14 @@ class Tenant extends Model
         $ownerRole = Role::firstOrCreate([
             'name' => 'Owner',
             'guard_name' => 'web',
-            'tenant_id' => $this->id,
+            'tenant_id' => $tenantId,
         ]);
         $ownerRole->syncPermissions($permissions);
 
         $cashierRole = Role::firstOrCreate([
             'name' => 'Cashier',
             'guard_name' => 'web',
-            'tenant_id' => $this->id,
+            'tenant_id' => $tenantId,
         ]);
         $cashierRole->syncPermissions([
             'use pos',
@@ -99,7 +105,7 @@ class Tenant extends Model
         $baristaRole = Role::firstOrCreate([
             'name' => 'Barista',
             'guard_name' => 'web',
-            'tenant_id' => $this->id,
+            'tenant_id' => $tenantId,
         ]);
         $baristaRole->syncPermissions([
             'manage brewing orders',

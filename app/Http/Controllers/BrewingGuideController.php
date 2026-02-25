@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BrewingGuide;
+use App\Models\Tenant;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -12,6 +13,18 @@ use Illuminate\View\View;
 class BrewingGuideController extends Controller
 {
     use AuthorizesRequests;
+
+    protected function tenantOrFail(): Tenant
+    {
+        $tenant = tenant();
+
+        if (! $tenant instanceof Tenant) {
+            abort(500, 'Tenant context missing.');
+        }
+
+        return $tenant;
+    }
+
     public function index(): View
     {
         $guides = BrewingGuide::orderBy('created_at', 'desc')->paginate(12);
@@ -33,6 +46,9 @@ class BrewingGuideController extends Controller
     {
         $this->authorize('manage users');
 
+        $currentTenant = $this->tenantOrFail();
+        $tenantId = (int) $currentTenant->getKey();
+
         $data = $request->validate([
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
@@ -46,7 +62,7 @@ class BrewingGuideController extends Controller
             'difficulty' => 'nullable|in:easy,medium,hard',
         ]);
 
-        $data['tenant_id'] = tenant()->id;
+        $data['tenant_id'] = $tenantId;
 
         // Filter empty ingredients
         if (!empty($data['ingredients'])) {
@@ -55,7 +71,7 @@ class BrewingGuideController extends Controller
 
         if ($request->hasFile('image')) {
             $image = $request->file('image');
-            $folder = 'tenant_' . tenant()->id . '/brewing-guides';
+            $folder = 'tenant_' . $tenantId . '/brewing-guides';
             $filename = uniqid('guide_') . '.' . $image->getClientOriginalExtension();
             $path = $image->storeAs($folder, $filename, 'public');
             $data['image_path'] = $path;
@@ -71,12 +87,16 @@ class BrewingGuideController extends Controller
     public function edit(string $subdomain, BrewingGuide $brewingGuide): View
     {
         $this->authorize('manage users');
+
         return view('brewing-guides.edit', compact('brewingGuide'));
     }
 
     public function update(Request $request, string $subdomain, BrewingGuide $brewingGuide): RedirectResponse
     {
         $this->authorize('manage users');
+
+        $currentTenant = $this->tenantOrFail();
+        $tenantId = (int) $currentTenant->getKey();
 
         $data = $request->validate([
             'title' => 'required|string|max:255',
@@ -107,7 +127,7 @@ class BrewingGuideController extends Controller
                 Storage::disk('public')->delete($brewingGuide->image_path);
             }
             $image = $request->file('image');
-            $folder = 'tenant_' . tenant()->id . '/brewing-guides';
+            $folder = 'tenant_' . $tenantId . '/brewing-guides';
             $filename = uniqid('guide_') . '.' . $image->getClientOriginalExtension();
             $path = $image->storeAs($folder, $filename, 'public');
             $data['image_path'] = $path;

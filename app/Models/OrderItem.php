@@ -9,6 +9,8 @@ class OrderItem extends Model
 {
     use BelongsToTenant;
 
+    protected $connection = 'tenant';
+
     protected $fillable = [
         'order_id',
         'product_id',

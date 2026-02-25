@@ -4,6 +4,7 @@ return [
     'starter' => [
         'name' => 'Starter',
         'price' => 500,
+        'lease_days' => 30,
         'features' => [
             'pos',
             'product_management',
@@ -16,6 +17,7 @@ return [
     'standard' => [
         'name' => 'Standard',
         'price' => 1500,
+        'lease_days' => 30,
         'features' => [
             'pos',
             'product_management',
@@ -30,6 +32,7 @@ return [
     'business' => [
         'name' => 'Business',
         'price' => 2000,
+        'lease_days' => 30,
         'features' => [
             'pos',
             'product_management',
