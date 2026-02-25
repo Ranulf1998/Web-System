@@ -9,7 +9,9 @@ use App\Support\ActivityLogger;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PosController extends Controller
 {
@@ -59,6 +61,18 @@ class PosController extends Controller
 
     public function submit(Request $request): RedirectResponse
     {
+        $validated = $request->validate([
+            'cashier_note' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $cashierNote = isset($validated['cashier_note'])
+            ? trim((string) $validated['cashier_note'])
+            : null;
+
+        if ($cashierNote === '') {
+            $cashierNote = null;
+        }
+
         $items = $request->input('items', []);
         if (is_string($items)) {
             $decoded = json_decode($items, true);
@@ -89,12 +103,32 @@ class PosController extends Controller
             $total += $product->price * $item['quantity'];
         }
 
-        $order = DB::transaction(function () use ($items, $products, $total) {
-            $order = Order::create([
+        $hasCashierNoteColumn = Schema::connection('tenant')->hasColumn('orders', 'cashier_note');
+
+        if (!$hasCashierNoteColumn) {
+            try {
+                Schema::connection('tenant')->table('orders', function (Blueprint $table) {
+                    $table->text('cashier_note')->nullable()->after('status');
+                });
+
+                $hasCashierNoteColumn = true;
+            } catch (\Throwable $e) {
+                $hasCashierNoteColumn = false;
+            }
+        }
+
+        $order = DB::transaction(function () use ($items, $products, $total, $cashierNote, $hasCashierNoteColumn) {
+            $orderPayload = [
                 'user_id' => auth()->id(),
                 'total' => $total,
                 'status' => 'pending',
-            ]);
+            ];
+
+            if ($hasCashierNoteColumn) {
+                $orderPayload['cashier_note'] = $cashierNote;
+            }
+
+            $order = Order::create($orderPayload);
 
             foreach ($items as $item) {
                 $product = $products->get($item['product_id']);
@@ -118,6 +152,7 @@ class PosController extends Controller
             [
                 'total' => (float) $order->total,
                 'items_count' => count($items),
+                'cashier_note' => $order->cashier_note,
             ]
         );
 

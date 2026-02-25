@@ -53,6 +53,13 @@
                         <form class="mt-4" method="POST" action="{{ route('pos.submit') }}" id="pos-submit">
                             @csrf
                             <input type="hidden" name="items" id="pos-items" />
+                            <div class="mb-3">
+                                <label for="cashier_note" class="mb-1 block text-sm font-medium text-gray-700">Cashier Note (optional)</label>
+                                <textarea id="cashier_note" name="cashier_note" rows="3" maxlength="500" placeholder="e.g. Less ice, more sugar" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('cashier_note') }}</textarea>
+                                @error('cashier_note')
+                                    <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                                @enderror
+                            </div>
                             <button id="submit-order" class="px-4 py-2 bg-emerald-600 text-white rounded disabled:bg-emerald-300" disabled>Submit Order</button>
                         </form>
                     </div>

@@ -50,7 +50,7 @@ class AuthServiceProvider extends ServiceProvider
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         Gate::define('manage products', function ($user) {
-            return $user->hasPermissionTo('manage products');
+            return $user->hasRole('Owner') || $user->hasPermissionTo('manage products');
         });
 
         Gate::define('manage users', function ($user) {

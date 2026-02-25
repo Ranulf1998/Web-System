@@ -1,4 +1,8 @@
 <x-app-layout>
+    @php
+        $isOwner = auth()->user()?->hasRole('Owner') ?? false;
+    @endphp
+
     <x-slot name="header">
         <h2 class="font-semibold text-xl text-gray-800 leading-tight">
             {{ __('Products') }}
@@ -9,9 +13,9 @@
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
-                    @can('manage products')
+                    @if($isOwner || auth()->user()?->can('manage products'))
                         <a href="{{ route('products.create') }}" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mb-4 inline-block">Add Product</a>
-                    @endcan
+                    @endif
 
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead>
@@ -29,13 +33,13 @@
                                 <td class="px-6 py-4 whitespace-no-wrap">₱{{ number_format($product->price, 2) }}</td>
                                 <td class="px-6 py-4 whitespace-no-wrap">{{ $product->stock }}</td>
                                 <td class="px-6 py-4 whitespace-no-wrap">
-                                    @can('manage products')
+                                    @if($isOwner || auth()->user()?->can('manage products'))
                                         <a href="{{ route('products.edit', $product) }}" class="text-indigo-600 hover:text-indigo-900">Edit</a>
                                         <form action="{{ route('products.destroy', $product) }}" method="POST" class="inline ml-2">
                                             @csrf @method('DELETE')
                                             <button type="submit" class="text-red-600 hover:text-red-900" onclick="return confirm('Are you sure?')">Delete</button>
                                         </form>
-                                    @endcan
+                                    @endif
                                 </td>
                             </tr>
                             @endforeach

@@ -23,6 +23,11 @@
                     </div>
                 </div>
 
+                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="text-xs uppercase tracking-wide text-slate-500">Cashier Note</div>
+                    <div class="mt-1 text-sm text-slate-700">{{ $order->cashier_note ?: 'No note provided.' }}</div>
+                </div>
+
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead class="bg-gray-50">

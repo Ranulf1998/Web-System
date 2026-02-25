@@ -15,6 +15,7 @@ class Order extends Model
         'user_id',
         'total',
         'status',
+        'cashier_note',
     ];
 
     public function items()

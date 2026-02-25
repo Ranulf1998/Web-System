@@ -22,6 +22,7 @@
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier Note</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -35,6 +36,9 @@
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $order->user?->name ?? 'N/A' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">
                                         {{ $order->items->sum('quantity') }}
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        {{ $order->cashier_note ?: '—' }}
                                     </td>
                                     <td class="px-4 py-3 text-sm text-gray-700">₱{{ number_format((float) $order->total, 2) }}</td>
                                     <td class="px-4 py-3 text-sm">
@@ -50,6 +54,7 @@
                                                 'user' => $order->user?->name ?? 'N/A',
                                                 'status' => ucfirst($order->status),
                                                 'total' => number_format((float) $order->total, 2),
+                                                'cashier_note' => $order->cashier_note,
                                                 'items' => $order->items->map(fn($item) => [
                                                     'product_name' => $item->product?->name ?? 'Unknown Product',
                                                     'quantity' => $item->quantity,
@@ -73,7 +78,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="7" class="px-4 py-6 text-center text-sm text-gray-500">No orders yet.</td>
+                                    <td colspan="8" class="px-4 py-6 text-center text-sm text-gray-500">No orders yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -128,6 +133,11 @@
                                     <span class="text-gray-500">Total:</span>
                                     <p class="font-medium text-gray-900" x-text="'₱' + (selectedOrder?.total || '0.00')"></p>
                                 </div>
+                            </div>
+
+                            <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                                <div class="text-xs uppercase tracking-wide text-slate-500">Cashier Note</div>
+                                <div class="mt-1 text-slate-700" x-text="selectedOrder?.cashier_note || 'No note provided.'"></div>
                             </div>
 
                             <!-- Order Items -->

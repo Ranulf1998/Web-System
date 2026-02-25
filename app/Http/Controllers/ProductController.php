@@ -13,8 +13,29 @@ class ProductController extends Controller
 {
     public function __construct()
     {
-        $this->middleware('permission:view products|manage products')->only(['index']);
-        $this->middleware('permission:manage products')->except(['index']);
+        $this->middleware(function (Request $request, $next) {
+            $user = $request->user();
+
+            if (!$user) {
+                abort(403);
+            }
+
+            $isOwner = $user->hasRole('Owner');
+
+            if ($request->routeIs('products.index')) {
+                if (!$isOwner && !$user->hasAnyPermission(['view products', 'manage products'])) {
+                    abort(403);
+                }
+
+                return $next($request);
+            }
+
+            if (!$isOwner && !$user->hasPermissionTo('manage products')) {
+                abort(403);
+            }
+
+            return $next($request);
+        });
     }
 
     /**
@@ -68,24 +89,28 @@ class ProductController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Product $product)
+    public function show(string $subdomain, string $product)
     {
-        //
+        abort(404);
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Product $product): View
+    public function edit(string $subdomain, string $product): View
     {
+        $product = Product::findOrFail($product);
+
         return view('products.edit', compact('product'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Product $product): RedirectResponse
+    public function update(Request $request, string $subdomain, string $product): RedirectResponse
     {
+        $product = Product::findOrFail($product);
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -118,8 +143,10 @@ class ProductController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Product $product): RedirectResponse
+    public function destroy(string $subdomain, string $product): RedirectResponse
     {
+        $product = Product::findOrFail($product);
+
         $productName = $product->name;
 
         if (!empty($product->image_path)) {

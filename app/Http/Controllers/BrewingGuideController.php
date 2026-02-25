@@ -31,8 +31,10 @@ class BrewingGuideController extends Controller
         return view('brewing-guides.index', compact('guides'));
     }
 
-    public function show(string $subdomain, BrewingGuide $brewingGuide): View
+    public function show(string $subdomain, string $brewingGuide): View
     {
+        $brewingGuide = BrewingGuide::findOrFail($brewingGuide);
+
         return view('brewing-guides.show', compact('brewingGuide'));
     }
 
@@ -84,16 +86,20 @@ class BrewingGuideController extends Controller
             ->with('status', 'Brewing guide created successfully.');
     }
 
-    public function edit(string $subdomain, BrewingGuide $brewingGuide): View
+    public function edit(string $subdomain, string $brewingGuide): View
     {
         $this->authorize('manage users');
+
+        $brewingGuide = BrewingGuide::findOrFail($brewingGuide);
 
         return view('brewing-guides.edit', compact('brewingGuide'));
     }
 
-    public function update(Request $request, string $subdomain, BrewingGuide $brewingGuide): RedirectResponse
+    public function update(Request $request, string $subdomain, string $brewingGuide): RedirectResponse
     {
         $this->authorize('manage users');
+
+        $brewingGuide = BrewingGuide::findOrFail($brewingGuide);
 
         $currentTenant = $this->tenantOrFail();
         $tenantId = (int) $currentTenant->getKey();
@@ -140,9 +146,11 @@ class BrewingGuideController extends Controller
             ->with('status', 'Brewing guide updated successfully.');
     }
 
-    public function destroy(string $subdomain, BrewingGuide $brewingGuide): RedirectResponse
+    public function destroy(string $subdomain, string $brewingGuide): RedirectResponse
     {
         $this->authorize('manage users');
+
+        $brewingGuide = BrewingGuide::findOrFail($brewingGuide);
 
         if ($brewingGuide->image_path) {
             Storage::disk('public')->delete($brewingGuide->image_path);
