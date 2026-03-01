@@ -472,6 +472,37 @@ class SuperAdminController extends Controller
         return redirect()->route('super-admin.dashboard')->with('status', "Subscription renewed for '{$tenant->name}'.");
     }
 
+    public function changeTenantSubscriptionPlan(Request $request, Tenant $tenant): RedirectResponse
+    {
+        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
+
+        $planKeys = array_keys(config('plans', []));
+
+        $validated = $request->validate([
+            'plan' => ['required', 'string', 'in:' . implode(',', $planKeys)],
+        ]);
+
+        $newPlan = strtolower(trim((string) $validated['plan']));
+        $monthlyPrice = (float) config('plans.' . $newPlan . '.price', 0);
+
+        $settings = $tenant->settings ?? [];
+        $currentMonths = (int) data_get($settings, 'subscription.months', 0);
+        $currentMonths = max($currentMonths, 1);
+
+        data_set($settings, 'subscription.monthly_price', $monthlyPrice);
+        data_set($settings, 'subscription.total_amount', $monthlyPrice * $currentMonths);
+        data_set($settings, 'subscription.currency', 'PHP');
+        data_set($settings, 'subscription.last_plan_change_at', now()->toIso8601String());
+        data_set($settings, 'subscription.last_plan_changed_by', auth()->id());
+
+        $tenant->update([
+            'plan' => $newPlan,
+            'settings' => $settings,
+        ]);
+
+        return redirect()->route('super-admin.dashboard')->with('status', "Subscription plan updated for '{$tenant->name}'.");
+    }
+
     public function updateSupportTicketStatus(Request $request, SupportTicket $supportTicket): RedirectResponse
     {
         abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);

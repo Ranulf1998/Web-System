@@ -24,6 +24,11 @@
                 </div>
 
                 <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div class="text-xs uppercase tracking-wide text-slate-500">Customer Name</div>
+                    <div class="mt-1 text-sm text-slate-700">{{ $order->customer_name ?: 'Walk-in customer' }}</div>
+                </div>
+
+                <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
                     <div class="text-xs uppercase tracking-wide text-slate-500">Cashier Note</div>
                     <div class="mt-1 text-sm text-slate-700">{{ $order->cashier_note ?: 'No note provided.' }}</div>
                 </div>

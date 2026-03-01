@@ -15,6 +15,7 @@ class Order extends Model
         'user_id',
         'total',
         'status',
+        'customer_name',
         'cashier_note',
     ];
 

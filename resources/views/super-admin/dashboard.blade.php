@@ -339,6 +339,7 @@
                                 value="{{ $tenant->id }}"
                                 data-tenant-id="{{ $tenant->id }}"
                                 data-tenant-name="{{ $tenant->name }}"
+                                data-tenant-plan-key="{{ $tenant->planKey() }}"
                                 data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
                                 data-tenant-subdomain="{{ $tenant->subdomain }}"
                                 data-tenant-lease-end="{{ $tenant->display_lease_ends_at?->format('M j, Y') ?? 'Not set' }}"
@@ -405,6 +406,25 @@
                         </div>
                         <button type="submit" data-subscription-renew-submit disabled class="rounded-md border border-indigo-300 px-3 py-2 text-xs font-medium text-indigo-700 hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50">Renew Selected Tenant</button>
                     </form>
+
+                    <div class="mt-6 border-t border-slate-200 pt-4">
+                        <h3 class="text-sm font-semibold text-slate-800">Change Plan</h3>
+                        <p class="mt-1 text-xs text-slate-500">Switch the selected tenant to a different subscription plan.</p>
+
+                        <form method="POST" action="{{ route('super-admin.tenants.subscription.plan.update', ['tenant' => '__TENANT_ID__']) }}" data-subscription-plan-form class="mt-3 space-y-3">
+                            @csrf
+                            @method('PATCH')
+                            <div>
+                                <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Plan</label>
+                                <select name="plan" data-subscription-plan-selector class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
+                                    @foreach (config('plans', []) as $planKey => $planConfig)
+                                        <option value="{{ $planKey }}">{{ data_get($planConfig, 'name', ucfirst((string) $planKey)) }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <button type="submit" data-subscription-plan-submit disabled class="rounded-md border border-amber-300 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">Change Plan for Selected Tenant</button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -736,6 +756,9 @@
             const subscriptionTenantSelector = document.getElementById('subscription-tenant-selector');
             const subscriptionRenewForm = document.querySelector('[data-subscription-renew-form]');
             const subscriptionRenewSubmit = document.querySelector('[data-subscription-renew-submit]');
+            const subscriptionPlanForm = document.querySelector('[data-subscription-plan-form]');
+            const subscriptionPlanSubmit = document.querySelector('[data-subscription-plan-submit]');
+            const subscriptionPlanSelector = document.querySelector('[data-subscription-plan-selector]');
             const subscriptionHistoryBody = document.querySelector('[data-subscription-renewal-history]');
             const subscriptionDetails = {
                 name: document.querySelector('[data-subscription-detail="name"]'),
@@ -781,6 +804,10 @@
                 if (subscriptionRenewSubmit) {
                     subscriptionRenewSubmit.disabled = !enabled;
                 }
+
+                if (subscriptionPlanSubmit) {
+                    subscriptionPlanSubmit.disabled = !enabled;
+                }
             };
 
             const updateSubscriptionDetails = (source) => {
@@ -815,6 +842,14 @@
 
                 if (subscriptionRenewForm) {
                     subscriptionRenewForm.action = `{{ url('/super-admin/tenants') }}/${source.value}/subscription/renew`;
+                }
+
+                if (subscriptionPlanForm) {
+                    subscriptionPlanForm.action = `{{ url('/super-admin/tenants') }}/${source.value}/subscription/plan`;
+                }
+
+                if (subscriptionPlanSelector) {
+                    subscriptionPlanSelector.value = get('plan-key', '').toLowerCase();
                 }
 
                 setSubscriptionState(true);

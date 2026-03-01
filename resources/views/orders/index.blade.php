@@ -20,6 +20,7 @@
                             <tr>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order #</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items</th>
                                 <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier Note</th>
@@ -33,6 +34,7 @@
                                 <tr>
                                     <td class="px-4 py-3 text-sm text-gray-900">#{{ $order->id }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $order->created_at?->setTimezone('Asia/Manila')?->format('M j, Y g:i A') }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ $order->customer_name ?: 'Walk-in customer' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">{{ $order->user?->name ?? 'N/A' }}</td>
                                     <td class="px-4 py-3 text-sm text-gray-700">
                                         {{ $order->items->sum('quantity') }}
@@ -51,6 +53,7 @@
                                             @click="selectedOrder = {{ json_encode([
                                                 'id' => $order->id,
                                                 'created_at' => $order->created_at?->setTimezone('Asia/Manila')?->format('M j, Y g:i A'),
+                                                'customer_name' => $order->customer_name,
                                                 'user' => $order->user?->name ?? 'N/A',
                                                 'status' => ucfirst($order->status),
                                                 'total' => number_format((float) $order->total, 2),
@@ -78,7 +81,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="8" class="px-4 py-6 text-center text-sm text-gray-500">No orders yet.</td>
+                                    <td colspan="9" class="px-4 py-6 text-center text-sm text-gray-500">No orders yet.</td>
                                 </tr>
                             @endforelse
                         </tbody>
@@ -124,6 +127,10 @@
                                 <div>
                                     <span class="text-gray-500">Cashier:</span>
                                     <p class="font-medium text-gray-900" x-text="selectedOrder?.user"></p>
+                                </div>
+                                <div>
+                                    <span class="text-gray-500">Customer:</span>
+                                    <p class="font-medium text-gray-900" x-text="selectedOrder?.customer_name || 'Walk-in customer'"></p>
                                 </div>
                                 <div>
                                     <span class="text-gray-500">Status:</span>

@@ -62,8 +62,17 @@ class PosController extends Controller
     public function submit(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'customer_name' => ['nullable', 'string', 'max:255'],
             'cashier_note' => ['nullable', 'string', 'max:500'],
         ]);
+
+        $customerName = isset($validated['customer_name'])
+            ? trim((string) $validated['customer_name'])
+            : null;
+
+        if ($customerName === '') {
+            $customerName = null;
+        }
 
         $cashierNote = isset($validated['cashier_note'])
             ? trim((string) $validated['cashier_note'])
@@ -103,6 +112,20 @@ class PosController extends Controller
             $total += $product->price * $item['quantity'];
         }
 
+        $hasCustomerNameColumn = Schema::connection('tenant')->hasColumn('orders', 'customer_name');
+
+        if (!$hasCustomerNameColumn) {
+            try {
+                Schema::connection('tenant')->table('orders', function (Blueprint $table) {
+                    $table->string('customer_name')->nullable()->after('status');
+                });
+
+                $hasCustomerNameColumn = true;
+            } catch (\Throwable $e) {
+                $hasCustomerNameColumn = false;
+            }
+        }
+
         $hasCashierNoteColumn = Schema::connection('tenant')->hasColumn('orders', 'cashier_note');
 
         if (!$hasCashierNoteColumn) {
@@ -117,12 +140,16 @@ class PosController extends Controller
             }
         }
 
-        $order = DB::transaction(function () use ($items, $products, $total, $cashierNote, $hasCashierNoteColumn) {
+        $order = DB::transaction(function () use ($items, $products, $total, $customerName, $hasCustomerNameColumn, $cashierNote, $hasCashierNoteColumn) {
             $orderPayload = [
                 'user_id' => auth()->id(),
                 'total' => $total,
                 'status' => 'pending',
             ];
+
+            if ($hasCustomerNameColumn) {
+                $orderPayload['customer_name'] = $customerName;
+            }
 
             if ($hasCashierNoteColumn) {
                 $orderPayload['cashier_note'] = $cashierNote;
@@ -152,6 +179,7 @@ class PosController extends Controller
             [
                 'total' => (float) $order->total,
                 'items_count' => count($items),
+                'customer_name' => $order->customer_name,
                 'cashier_note' => $order->cashier_note,
             ]
         );

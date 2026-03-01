@@ -54,6 +54,13 @@
                             @csrf
                             <input type="hidden" name="items" id="pos-items" />
                             <div class="mb-3">
+                                <label for="customer_name" class="mb-1 block text-sm font-medium text-gray-700">Customer Name (optional)</label>
+                                <input id="customer_name" name="customer_name" type="text" maxlength="255" placeholder="e.g. Juan Dela Cruz" value="{{ old('customer_name') }}" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                                @error('customer_name')
+                                    <p class="mt-1 text-xs text-rose-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <div class="mb-3">
                                 <label for="cashier_note" class="mb-1 block text-sm font-medium text-gray-700">Cashier Note (optional)</label>
                                 <textarea id="cashier_note" name="cashier_note" rows="3" maxlength="500" placeholder="e.g. Less ice, more sugar" class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">{{ old('cashier_note') }}</textarea>
                                 @error('cashier_note')
