@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\Role;
+use App\Services\RecaptchaVerifier;
 use App\Models\SupportTicket;
 use App\Models\Tenant;
 use App\Models\User;
@@ -61,7 +62,18 @@ class SuperAdminController extends Controller
         $credentials = $request->validate([
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'g-recaptcha-response' => ['required', 'string'],
         ]);
+
+        app(RecaptchaVerifier::class)->ensureValid(
+            $request->input('g-recaptcha-response'),
+            $request->ip()
+        );
+
+        $credentials = [
+            'email' => $credentials['email'],
+            'password' => $credentials['password'],
+        ];
 
         if (! Auth::attempt($credentials, $request->boolean('remember'))) {
             throw ValidationException::withMessages([

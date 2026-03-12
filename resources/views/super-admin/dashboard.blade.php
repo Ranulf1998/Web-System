@@ -16,9 +16,9 @@
                 <p class="text-xs uppercase tracking-[0.25em] text-indigo-600">BrewCloud Owner</p>
                 <h1 class="text-xl font-semibold">Super Admin Dashboard</h1>
             </div>
-            <form method="POST" action="{{ route('super-admin.logout') }}">
+            <form method="POST" action="{{ route('super-admin.logout') }}" data-super-admin-logout-form>
                 @csrf
-                <button type="submit" class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <button type="button" data-open-super-admin-logout-modal class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
                     Logout
                 </button>
             </form>
@@ -138,7 +138,9 @@
         <section class="rounded-xl border border-slate-200 bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Tenant Management - Current Tenants</h2>
-                <a href="{{ route('home') }}" class="text-sm text-indigo-600 hover:text-indigo-500">View landing page</a>
+                <button type="button" data-open-tenant-domains class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                    View Tenant Domains
+                </button>
             </div>
 
             <div class="overflow-x-auto">
@@ -244,6 +246,50 @@
             </div>
         </section>
     </main>
+
+    <dialog id="super-admin-logout-confirm-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <div class="rounded-xl bg-white p-6">
+            <h3 class="text-base font-semibold text-slate-900">Confirm Logout</h3>
+            <p class="mt-2 text-sm text-slate-600">Are you sure you want to log out?</p>
+
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button type="button" data-super-admin-logout-cancel class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" data-super-admin-logout-confirm class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Log Out</button>
+            </div>
+        </div>
+    </dialog>
+
+    <dialog id="tenant-domains-modal" class="w-full max-w-2xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <div class="rounded-xl bg-white p-6">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Tenant Domains</h2>
+                <button type="button" data-close-tenant-domains class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+            </div>
+
+            @php
+                $baseDomain = (string) config('app.domain');
+            @endphp
+
+            <div class="max-h-80 overflow-y-auto rounded-lg border border-slate-200">
+                <ul class="divide-y divide-slate-200">
+                    @forelse ($currentTenants as $tenantDomainItem)
+                        <li class="px-4 py-3 text-sm text-slate-700">
+                            <a
+                                href="{{ url('http://' . $tenantDomainItem->subdomain . '.' . $baseDomain . '/login') }}"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="text-indigo-600 hover:text-indigo-500 hover:underline"
+                            >
+                                {{ $tenantDomainItem->subdomain }}.{{ $baseDomain }}
+                            </a>
+                        </li>
+                    @empty
+                        <li class="px-4 py-3 text-sm text-slate-500">No tenant domains found.</li>
+                    @endforelse
+                </ul>
+            </div>
+        </div>
+    </dialog>
 
     <dialog id="tenant-management-modal" class="w-full max-w-5xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
         <div class="rounded-xl bg-white p-6">
@@ -990,9 +1036,61 @@
                 });
             }
 
+            const tenantDomainsModal = document.getElementById('tenant-domains-modal');
+            const tenantDomainsOpenButton = document.querySelector('[data-open-tenant-domains]');
+            const tenantDomainsCloseButton = document.querySelector('[data-close-tenant-domains]');
+
+            if (tenantDomainsModal && tenantDomainsOpenButton && tenantDomainsCloseButton) {
+                tenantDomainsOpenButton.addEventListener('click', function () {
+                    tenantDomainsModal.showModal();
+                });
+
+                tenantDomainsCloseButton.addEventListener('click', function () {
+                    tenantDomainsModal.close();
+                });
+
+                tenantDomainsModal.addEventListener('click', function (event) {
+                    const rect = tenantDomainsModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+
+                    if (!inDialog) {
+                        tenantDomainsModal.close();
+                    }
+                });
+            }
+
             const modal = document.getElementById('user-management-modal');
             const openButton = document.querySelector('[data-open-user-management]');
             const closeButton = document.querySelector('[data-close-user-management]');
+
+            const superAdminLogoutModal = document.getElementById('super-admin-logout-confirm-modal');
+            const superAdminLogoutForm = document.querySelector('[data-super-admin-logout-form]');
+            const superAdminLogoutOpenButton = document.querySelector('[data-open-super-admin-logout-modal]');
+            const superAdminLogoutCancelButton = document.querySelector('[data-super-admin-logout-cancel]');
+            const superAdminLogoutConfirmButton = document.querySelector('[data-super-admin-logout-confirm]');
+
+            if (superAdminLogoutModal && superAdminLogoutForm && superAdminLogoutOpenButton && superAdminLogoutCancelButton && superAdminLogoutConfirmButton) {
+                superAdminLogoutOpenButton.addEventListener('click', function () {
+                    superAdminLogoutModal.showModal();
+                });
+
+                superAdminLogoutCancelButton.addEventListener('click', function () {
+                    superAdminLogoutModal.close();
+                });
+
+                superAdminLogoutConfirmButton.addEventListener('click', function () {
+                    superAdminLogoutForm.submit();
+                });
+
+                superAdminLogoutModal.addEventListener('click', function (event) {
+                    const rect = superAdminLogoutModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+
+                    if (!inDialog) {
+                        superAdminLogoutModal.close();
+                    }
+                });
+            }
 
             if (!modal || !openButton || !closeButton) {
                 return;

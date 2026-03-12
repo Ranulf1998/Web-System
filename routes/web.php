@@ -14,6 +14,7 @@ use App\Http\Controllers\AccountabilityController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SupportTicketController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\PaymentController;
 
 /*
 |--------------------------------------------------------------------------
@@ -29,6 +30,8 @@ Route::domain(config('app.domain'))->group(function () {
     // Tenant registration (sign up for a new coffee shop)
     Route::get('/register', [TenantController::class, 'create'])->name('tenant.register');
     Route::post('/register', [TenantController::class, 'store']);
+    Route::post('/register/payment/session', [TenantController::class, 'createStripeRegistrationSession'])->name('tenant.register.payment.session');
+    Route::get('/register/payment/success', [TenantController::class, 'stripeSuccess'])->name('tenant.register.payment.success');
     Route::get('/shop-login', [TenantController::class, 'shopLogin'])->name('tenant.shop-login');
 
     Route::get('/super-admin/login', [SuperAdminController::class, 'showLoginForm'])->name('super-admin.login');
@@ -149,6 +152,10 @@ Route::domain('{subdomain}.' . config('app.domain'))
                 ->middleware('can:manage users')
                 ->name('support-tickets.store');
             // ... more routes
+            Route::get('/checkout', [PaymentController::class, 'checkout'])->name('checkout');
+            Route::post('/create-checkout-session', [PaymentController::class, 'createCheckoutSession'])->name('checkout.session');
+            Route::get('/checkout/success', [PaymentController::class, 'success'])->name('checkout.success');
+            Route::get('/checkout/cancel', [PaymentController::class, 'cancel'])->name('checkout.cancel');
         });
 
         // If you have password reset or other auth routes, include them as needed.

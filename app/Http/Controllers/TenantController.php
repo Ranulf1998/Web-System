@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Http\Request;
@@ -17,6 +18,8 @@ use Illuminate\View\View;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use App\Services\TenantDatabaseProvisioner;
+use Stripe\Checkout\Session as StripeCheckoutSession;
+use Stripe\Stripe;
 
 class TenantController extends Controller
 {
@@ -111,9 +114,11 @@ class TenantController extends Controller
         return true;
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
-        return view('tenant.create');
+        return view('tenant.create', [
+            'paymentCancelled' => $request->query('payment') === 'cancelled',
+        ]);
     }
 
     public function shopLogin(Request $request): RedirectResponse
@@ -127,13 +132,229 @@ class TenantController extends Controller
 
     public function store(Request $request, TenantDatabaseProvisioner $databaseProvisioner): ViewContract|RedirectResponse
     {
+        $data = $this->validateTenantRegistrationData($request);
+        $monthlyPlanPrice = (float) config('plans.' . $data['plan'] . '.price', 0);
+        $totalSubscriptionAmount = $monthlyPlanPrice * $data['subscription_months'];
+
+        if ($data['payment_method'] === 'stripe') {
+            return $this->startStripeRegistrationCheckout($request, $data, $totalSubscriptionAmount);
+        }
+
+        return $this->completeTenantRegistration($data, $databaseProvisioner);
+    }
+
+    public function createStripeRegistrationSession(Request $request): JsonResponse
+    {
+        $data = $this->validateTenantRegistrationData($request);
+
+        if ($data['payment_method'] !== 'stripe') {
+            return response()->json([
+                'message' => 'Stripe payment method is required for modal checkout.',
+            ], 422);
+        }
+
+        $monthlyPlanPrice = (float) config('plans.' . $data['plan'] . '.price', 0);
+        $totalSubscriptionAmount = $monthlyPlanPrice * $data['subscription_months'];
+
+        $stripeSecret = (string) config('services.stripe.secret');
+        $stripePublishableKey = (string) config('services.stripe.key');
+
+        if ($stripeSecret === '' || $stripePublishableKey === '') {
+            return response()->json([
+                'message' => 'Stripe is not configured. Set STRIPE_KEY and STRIPE_SECRET first.',
+            ], 422);
+        }
+
+        $amountInCents = (int) round($totalSubscriptionAmount * 100);
+
+        if ($amountInCents <= 0) {
+            return response()->json([
+                'message' => 'The selected plan has an invalid Stripe amount.',
+            ], 422);
+        }
+
+        $registrationToken = (string) Str::uuid();
+        $request->session()->put("tenant_registration.pending.{$registrationToken}", $data);
+
+        try {
+            Stripe::setApiKey($stripeSecret);
+
+            $checkoutSession = StripeCheckoutSession::create([
+                'mode' => 'payment',
+                'ui_mode' => 'embedded',
+                'customer_email' => $data['email'],
+                'line_items' => [[
+                    'price_data' => [
+                        'currency' => 'php',
+                        'unit_amount' => $amountInCents,
+                        'product_data' => [
+                            'name' => sprintf('%s Plan Subscription', ucfirst($data['plan'])),
+                            'description' => sprintf('%d month(s) for %s.%s', (int) $data['subscription_months'], $data['subdomain'], config('app.domain')),
+                        ],
+                    ],
+                    'quantity' => 1,
+                ]],
+                'metadata' => [
+                    'registration_token' => $registrationToken,
+                    'subdomain' => $data['subdomain'],
+                    'plan' => $data['plan'],
+                    'months' => (string) $data['subscription_months'],
+                ],
+                'return_url' => route('tenant.register.payment.success', [], true) . '?session_id={CHECKOUT_SESSION_ID}',
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to create embedded Stripe checkout session for tenant registration.', [
+                'error' => $exception->getMessage(),
+                'subdomain' => $data['subdomain'],
+                'email' => $data['email'],
+            ]);
+
+            $request->session()->forget("tenant_registration.pending.{$registrationToken}");
+
+            return response()->json([
+                'message' => 'Unable to start Stripe checkout. Please try again.',
+            ], 500);
+        }
+
+        return response()->json([
+            'clientSecret' => (string) $checkoutSession->client_secret,
+            'publishableKey' => $stripePublishableKey,
+        ]);
+    }
+
+    public function stripeSuccess(Request $request, TenantDatabaseProvisioner $databaseProvisioner): RedirectResponse
+    {
+        $sessionId = (string) $request->query('session_id', '');
+
+        if ($sessionId === '') {
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Missing Stripe session id.']);
+        }
+
+        $stripeSecret = (string) config('services.stripe.secret');
+
+        if ($stripeSecret === '') {
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Stripe is not configured. Set STRIPE_SECRET first.']);
+        }
+
+        try {
+            Stripe::setApiKey($stripeSecret);
+            $checkoutSession = StripeCheckoutSession::retrieve($sessionId);
+        } catch (\Throwable $exception) {
+            Log::warning('Stripe checkout session retrieval failed during tenant registration.', [
+                'session_id' => $sessionId,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Unable to verify Stripe payment.']);
+        }
+
+        if (($checkoutSession->payment_status ?? null) !== 'paid') {
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Stripe payment is not marked as paid yet.']);
+        }
+
+        $registrationToken = (string) ($checkoutSession->metadata->registration_token ?? '');
+
+        if ($registrationToken === '') {
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Missing Stripe registration token.']);
+        }
+
+        $pendingKey = "tenant_registration.pending.{$registrationToken}";
+        $pendingData = $request->session()->get($pendingKey);
+
+        if (!is_array($pendingData)) {
+            return redirect()->route('tenant.register')
+                ->withErrors(['payment_method' => 'Your registration session expired. Please submit registration again.']);
+        }
+
+        $pendingData['payment_method'] = 'stripe';
+        $pendingData['stripe_checkout_session_id'] = $sessionId;
+        $pendingData['stripe_payment_intent_id'] = (string) ($checkoutSession->payment_intent ?? '');
+
+        $response = $this->completeTenantRegistration($pendingData, $databaseProvisioner);
+
+        $request->session()->forget($pendingKey);
+
+        return $response;
+    }
+
+    protected function startStripeRegistrationCheckout(Request $request, array $data, float $totalSubscriptionAmount): RedirectResponse
+    {
+        $stripeSecret = (string) config('services.stripe.secret');
+
+        if ($stripeSecret === '') {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['payment_method' => 'Stripe is not configured. Set STRIPE_SECRET first.']);
+        }
+
+        $amountInCents = (int) round($totalSubscriptionAmount * 100);
+
+        if ($amountInCents <= 0) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['payment_method' => 'The selected plan has an invalid Stripe amount.']);
+        }
+
+        $registrationToken = (string) Str::uuid();
+        $request->session()->put("tenant_registration.pending.{$registrationToken}", $data);
+
+        try {
+            Stripe::setApiKey($stripeSecret);
+
+            $checkoutSession = StripeCheckoutSession::create([
+                'mode' => 'payment',
+                'customer_email' => $data['email'],
+                'line_items' => [[
+                    'price_data' => [
+                        'currency' => 'php',
+                        'unit_amount' => $amountInCents,
+                        'product_data' => [
+                            'name' => sprintf('%s Plan Subscription', ucfirst($data['plan'])),
+                            'description' => sprintf('%d month(s) for %s.%s', (int) $data['subscription_months'], $data['subdomain'], config('app.domain')),
+                        ],
+                    ],
+                    'quantity' => 1,
+                ]],
+                'metadata' => [
+                    'registration_token' => $registrationToken,
+                    'subdomain' => $data['subdomain'],
+                    'plan' => $data['plan'],
+                    'months' => (string) $data['subscription_months'],
+                ],
+                'success_url' => route('tenant.register.payment.success', [], true) . '?session_id={CHECKOUT_SESSION_ID}',
+                'cancel_url' => route('tenant.register', [], true) . '?payment=cancelled',
+            ]);
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to create Stripe checkout session for tenant registration.', [
+                'error' => $exception->getMessage(),
+                'subdomain' => $data['subdomain'],
+                'email' => $data['email'],
+            ]);
+
+            $request->session()->forget("tenant_registration.pending.{$registrationToken}");
+
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['payment_method' => 'Unable to start Stripe checkout. Please try again.']);
+        }
+
+        return redirect()->away((string) $checkoutSession->url);
+    }
+
+    protected function validateTenantRegistrationData(Request $request): array
+    {
         $allowedPlans = implode(',', array_keys(config('plans')));
 
         $data = $request->validate([
             'shop_name' => 'required',
             'subdomain' => 'required|unique:tenants,subdomain|alpha_dash',
             'plan' => "required|in:{$allowedPlans}",
-            'payment_method' => 'required|in:gcash,bank',
+            'payment_method' => 'required|in:gcash,stripe',
             'subscription_months' => 'required|integer|min:1|max:24',
             'name' => 'required',
             'email' => 'required|email|unique:users,email',
@@ -145,11 +366,17 @@ class TenantController extends Controller
         $data['payment_method'] = strtolower(trim((string) $data['payment_method']));
         $data['subscription_months'] = (int) $data['subscription_months'];
 
-        $monthlyPlanPrice = (float) config('plans.' . $data['plan'] . '.price', 0);
-        $totalSubscriptionAmount = $monthlyPlanPrice * $data['subscription_months'];
+        return $data;
+    }
+
+    protected function completeTenantRegistration(array $data, TenantDatabaseProvisioner $databaseProvisioner): RedirectResponse
+    {
 
         $leaseStart = Carbon::now();
         $leaseEnd = $leaseStart->copy()->addMonths($data['subscription_months']);
+
+        $monthlyPlanPrice = (float) config('plans.' . $data['plan'] . '.price', 0);
+        $totalSubscriptionAmount = $monthlyPlanPrice * (int) $data['subscription_months'];
 
         $databaseName = $databaseProvisioner->generateDatabaseName($data['subdomain']);
         $tenant = null;
@@ -169,6 +396,9 @@ class TenantController extends Controller
                         'monthly_price' => $monthlyPlanPrice,
                         'total_amount' => $totalSubscriptionAmount,
                         'currency' => 'PHP',
+                        'payment_status' => $data['payment_method'] === 'stripe' ? 'paid' : 'pending',
+                        'stripe_checkout_session_id' => $data['stripe_checkout_session_id'] ?? null,
+                        'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
                     ],
                     'database' => [
                         'host' => config('tenancy.tenant_host'),

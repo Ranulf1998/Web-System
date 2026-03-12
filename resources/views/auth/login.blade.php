@@ -1,4 +1,8 @@
 <x-guest-layout>
+    @php
+        $recaptchaSiteKey = (string) config('services.recaptcha.site_key');
+    @endphp
+
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
@@ -32,6 +36,18 @@
             </label>
         </div>
 
+        <div class="mt-4">
+            @if ($recaptchaSiteKey !== '')
+                <div class="g-recaptcha" data-sitekey="{{ $recaptchaSiteKey }}"></div>
+            @else
+                <div class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    reCAPTCHA is not configured. Set RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY first.
+                </div>
+            @endif
+
+            <x-input-error :messages="$errors->get('g-recaptcha-response')" class="mt-2" />
+        </div>
+
         <div class="flex items-center justify-end mt-4">
             @if (Route::has('password.request'))
                 <a class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500" href="{{ route('password.request', ['subdomain' => request()->route('subdomain')]) }}">
@@ -39,9 +55,13 @@
                 </a>
             @endif
 
-            <x-primary-button class="ms-3">
+            <x-primary-button class="ms-3" :disabled="$recaptchaSiteKey === ''">
                 {{ __('Log in') }}
             </x-primary-button>
         </div>
     </form>
+
+    @if ($recaptchaSiteKey !== '')
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 </x-guest-layout>

@@ -37,7 +37,13 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('tenant.register') }}">
+    @if (($paymentCancelled ?? false) === true)
+        <div class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Stripe checkout was cancelled. Your shop was not created yet.
+        </div>
+    @endif
+
+    <form id="tenant-registration-form" method="POST" action="{{ route('tenant.register') }}" data-stripe-session-url="{{ route('tenant.register.payment.session') }}">
         @csrf
 
         <!-- Shop Name -->
@@ -142,9 +148,9 @@
                 <label class="block border rounded-lg p-4 cursor-pointer">
                     <div class="flex items-center justify-between gap-4">
                         <div>
-                            <div class="font-semibold">Bank</div>
+                            <div class="font-semibold">Bank (Card)</div>
                         </div>
-                        <input type="radio" name="payment_method" value="bank" {{ old('payment_method') === 'bank' ? 'checked' : '' }}>
+                        <input type="radio" name="payment_method" value="stripe" {{ old('payment_method') === 'stripe' ? 'checked' : '' }}>
                     </div>
                 </label>
             </div>
@@ -196,20 +202,41 @@
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            <x-primary-button class="ml-4">
+            <div id="stripe-modal-error" class="mr-4 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
+            <x-primary-button id="register-shop-submit" class="ml-4">
                 {{ __('Register Shop') }}
             </x-primary-button>
         </div>
     </form>
 
+    <div id="stripe-checkout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
+        <div class="w-full max-w-3xl rounded-xl bg-white p-4 shadow-xl">
+            <div class="mb-3 flex items-center justify-between">
+                <div class="text-sm font-semibold text-gray-700">Complete Stripe Payment</div>
+                <button id="stripe-modal-close" type="button" class="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100">Close</button>
+            </div>
+            <div id="stripe-checkout-container" class="max-h-[80vh] overflow-auto"></div>
+        </div>
+    </div>
+
+    <script src="https://js.stripe.com/v3/"></script>
     <script>
         (() => {
             const planInputs = document.querySelectorAll('.plan-option');
             const monthsInput = document.getElementById('subscription_months');
             const monthlyPriceTarget = document.getElementById('monthly-price');
             const totalPriceTarget = document.getElementById('total-price');
+            const registrationForm = document.getElementById('tenant-registration-form');
+            const submitButton = document.getElementById('register-shop-submit');
+            const stripePaymentInput = document.querySelector('input[name="payment_method"][value="stripe"]');
+            const stripeError = document.getElementById('stripe-modal-error');
+            const stripeModal = document.getElementById('stripe-checkout-modal');
+            const stripeModalClose = document.getElementById('stripe-modal-close');
+            const stripeContainer = document.getElementById('stripe-checkout-container');
 
-            if (!planInputs.length || !monthsInput || !monthlyPriceTarget || !totalPriceTarget) {
+            let embeddedCheckout = null;
+
+            if (!planInputs.length || !monthsInput || !monthlyPriceTarget || !totalPriceTarget || !registrationForm || !submitButton) {
                 return;
             }
 
@@ -230,6 +257,140 @@
                 monthlyPriceTarget.textContent = formatCurrency(monthlyPrice);
                 totalPriceTarget.textContent = formatCurrency(total);
             };
+
+            const showStripeError = (message) => {
+                if (!stripeError) {
+                    return;
+                }
+
+                stripeError.textContent = message;
+                stripeError.classList.remove('hidden');
+            };
+
+            const clearStripeError = () => {
+                if (!stripeError) {
+                    return;
+                }
+
+                stripeError.textContent = '';
+                stripeError.classList.add('hidden');
+            };
+
+            const closeStripeModal = async () => {
+                if (!stripeModal || !stripeContainer) {
+                    return;
+                }
+
+                try {
+                    if (embeddedCheckout && typeof embeddedCheckout.destroy === 'function') {
+                        embeddedCheckout.destroy();
+                    }
+                } catch (error) {
+                }
+
+                embeddedCheckout = null;
+                stripeContainer.innerHTML = '';
+                stripeModal.classList.add('hidden');
+                stripeModal.classList.remove('flex');
+            };
+
+            const openStripeModal = () => {
+                if (!stripeModal) {
+                    return;
+                }
+
+                stripeModal.classList.remove('hidden');
+                stripeModal.classList.add('flex');
+            };
+
+            const getStripeErrorFromPayload = (payload) => {
+                if (!payload || typeof payload !== 'object') {
+                    return 'Unable to start Stripe checkout. Please try again.';
+                }
+
+                if (typeof payload.message === 'string' && payload.message.trim() !== '') {
+                    return payload.message;
+                }
+
+                const errors = payload.errors;
+                if (errors && typeof errors === 'object') {
+                    const firstField = Object.keys(errors)[0];
+                    const firstMessage = firstField ? errors[firstField]?.[0] : null;
+                    if (typeof firstMessage === 'string' && firstMessage.trim() !== '') {
+                        return firstMessage;
+                    }
+                }
+
+                return 'Unable to start Stripe checkout. Please try again.';
+            };
+
+            const setSubmittingState = (isSubmitting) => {
+                submitButton.disabled = isSubmitting;
+                submitButton.style.opacity = isSubmitting ? '0.7' : '1';
+            };
+
+            registrationForm.addEventListener('submit', async (event) => {
+                const stripeSelected = Boolean(stripePaymentInput && stripePaymentInput.checked);
+                if (!stripeSelected) {
+                    return;
+                }
+
+                event.preventDefault();
+                clearStripeError();
+                setSubmittingState(true);
+
+                try {
+                    const response = await fetch(registrationForm.dataset.stripeSessionUrl, {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-TOKEN': registrationForm.querySelector('input[name="_token"]')?.value || '',
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                        body: new FormData(registrationForm),
+                    });
+
+                    const payload = await response.json();
+
+                    if (!response.ok) {
+                        showStripeError(getStripeErrorFromPayload(payload));
+                        setSubmittingState(false);
+                        return;
+                    }
+
+                    if (!window.Stripe || !payload.publishableKey || !payload.clientSecret) {
+                        showStripeError('Stripe could not be initialized. Please check configuration.');
+                        setSubmittingState(false);
+                        return;
+                    }
+
+                    const stripe = window.Stripe(payload.publishableKey);
+                    embeddedCheckout = await stripe.initEmbeddedCheckout({
+                        clientSecret: payload.clientSecret,
+                    });
+
+                    openStripeModal();
+                    embeddedCheckout.mount('#stripe-checkout-container');
+                } catch (error) {
+                    showStripeError('Unable to start Stripe checkout. Please try again.');
+                } finally {
+                    setSubmittingState(false);
+                }
+            });
+
+            if (stripeModalClose) {
+                stripeModalClose.addEventListener('click', () => {
+                    closeStripeModal();
+                });
+            }
+
+            if (stripeModal) {
+                stripeModal.addEventListener('click', (event) => {
+                    if (event.target === stripeModal) {
+                        closeStripeModal();
+                    }
+                });
+            }
 
             planInputs.forEach((input) => input.addEventListener('change', updatePricing));
             monthsInput.addEventListener('change', updatePricing);

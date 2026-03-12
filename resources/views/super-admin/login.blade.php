@@ -10,6 +10,10 @@
     @endif
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-100">
+    @php
+        $recaptchaSiteKey = (string) config('services.recaptcha.site_key');
+    @endphp
+
     <div class="mx-auto flex min-h-screen w-full max-w-7xl items-center justify-center px-6 py-12">
         <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 p-8 shadow-2xl">
             <div class="mb-6">
@@ -49,7 +53,21 @@
                     Remember me
                 </label>
 
-                <button type="submit" class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500">
+                <div>
+                    @if ($recaptchaSiteKey !== '')
+                        <div class="g-recaptcha" data-sitekey="{{ $recaptchaSiteKey }}"></div>
+                    @else
+                        <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                            reCAPTCHA is not configured. Set RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY first.
+                        </div>
+                    @endif
+
+                    @if ($errors->has('g-recaptcha-response'))
+                        <div class="mt-2 text-sm text-red-300">{{ $errors->first('g-recaptcha-response') }}</div>
+                    @endif
+                </div>
+
+                <button type="submit" @disabled($recaptchaSiteKey === '') class="w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60">
                     Sign in
                 </button>
             </form>
@@ -59,5 +77,9 @@
             </div>
         </div>
     </div>
+
+    @if ($recaptchaSiteKey !== '')
+        <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    @endif
 </body>
 </html>
