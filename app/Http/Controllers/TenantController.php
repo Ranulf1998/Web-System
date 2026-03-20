@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TenantRegistrationReceivedMail;
 use App\Models\Role;
 use App\Models\Tenant;
 use App\Models\User;
@@ -10,11 +11,11 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\View\View;
 use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
@@ -362,7 +363,6 @@ class TenantController extends Controller
             'subscription_months' => 'required|integer|min:1|max:24',
             'name' => 'required',
             'email' => 'required|email',
-            'password' => 'required|confirmed|min:8',
             'terms' => 'accepted',
         ]);
 
@@ -417,11 +417,20 @@ class TenantController extends Controller
                     'owner' => [
                         'name' => (string) $data['name'],
                         'email' => (string) $data['email'],
-                        'password_hash' => Hash::make((string) $data['password']),
                     ],
                 ],
             ],
         ]);
+
+        try {
+            Mail::to((string) $data['email'])->send(new TenantRegistrationReceivedMail($tenant));
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to send tenant registration received email.', [
+                'tenant_id' => $tenant->id,
+                'email' => (string) $data['email'],
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         $payload = [
             'success' => 'Registration in progress. We’ll email your login link and credentials once approved.',

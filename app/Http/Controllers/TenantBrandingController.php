@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Support\ActivityLogger;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\View\View;
 
@@ -19,6 +20,8 @@ class TenantBrandingController extends Controller
 
         return view('tenant.branding', [
             'branding' => $branding,
+            'tenant' => $tenant,
+            'canUpdateShopName' => Auth::user()?->hasRole('Owner') ?? false,
         ]);
     }
 
@@ -30,12 +33,34 @@ class TenantBrandingController extends Controller
         $logoChanged = false;
 
         $data = $request->validate([
+            'shop_name' => ['nullable', 'string', 'max:255'],
             'primary_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
             'accent_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
             'background_color' => ['nullable', 'regex:/^#([0-9a-fA-F]{3}){1,2}$/'],
             'logo' => ['nullable', 'file', 'mimes:png,jpg,jpeg,webp,svg', 'max:2048'],
             'remove_logo' => ['nullable', 'boolean'],
         ]);
+
+        $shopNameChanged = false;
+
+        if (array_key_exists('shop_name', $data)) {
+            if (! (Auth::user()?->hasRole('Owner') ?? false)) {
+                abort(403, 'Only the shop owner can change the shop name.');
+            }
+
+            $newShopName = trim((string) ($data['shop_name'] ?? ''));
+
+            if ($newShopName === '') {
+                return redirect()->route('branding.edit')->withErrors([
+                    'shop_name' => 'Shop name is required.',
+                ]);
+            }
+
+            if ($tenant->name !== $newShopName) {
+                $tenant->name = $newShopName;
+                $shopNameChanged = true;
+            }
+        }
 
         $settings = $tenant->settings ?? [];
         $branding = $settings['branding'] ?? [];
@@ -85,6 +110,8 @@ class TenantBrandingController extends Controller
                 'accent_color' => $branding['accent'] ?? null,
                 'background_color' => $branding['background'] ?? null,
                 'logo_changed' => $logoChanged,
+                'shop_name_changed' => $shopNameChanged,
+                'shop_name' => $tenant->name,
             ]
         );
 

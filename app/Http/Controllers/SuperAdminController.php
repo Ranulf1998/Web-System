@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\TenantApprovedMail;
 use App\Models\Order;
 use App\Models\Permission;
 use App\Models\Product;
@@ -16,8 +17,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Spatie\Permission\PermissionRegistrar;
@@ -497,13 +501,15 @@ class SuperAdminController extends Controller
 
         $ownerName = trim((string) data_get($settings, 'onboarding.owner.name', ''));
         $ownerEmail = trim((string) data_get($settings, 'onboarding.owner.email', ''));
-        $ownerPasswordHash = (string) data_get($settings, 'onboarding.owner.password_hash', '');
 
-        if ($ownerName === '' || $ownerEmail === '' || $ownerPasswordHash === '') {
+        if ($ownerName === '' || $ownerEmail === '') {
             return redirect()->route('super-admin.dashboard')->withErrors([
                 'tenant_approval' => "Tenant '{$tenant->name}' is missing onboarding owner details.",
             ]);
         }
+
+        $generatedPassword = $this->generateStrongPassword(12);
+        $ownerPasswordHash = Hash::make($generatedPassword);
 
         $databaseName = (string) data_get($settings, 'database.database', '');
         if ($databaseName === '') {
@@ -546,6 +552,12 @@ class SuperAdminController extends Controller
                             'email' => $ownerEmail,
                             'password' => $ownerPasswordHash,
                         ]);
+                    } else {
+                        $user->fill([
+                            'tenant_id' => $tenant->id,
+                            'name' => $ownerName,
+                            'password' => $ownerPasswordHash,
+                        ])->save();
                     }
 
                     $ownerRole = $this->seedTenantRoles($tenant);
@@ -572,11 +584,21 @@ class SuperAdminController extends Controller
         data_forget($settings, 'status.declined_at');
         data_forget($settings, 'status.declined_by');
         data_forget($settings, 'status.decline_reason');
-        data_forget($settings, 'onboarding.owner.password_hash');
 
         $tenant->update([
             'settings' => $settings,
         ]);
+
+        try {
+            $tenantLoginUrl = route('tenant.login', ['subdomain' => $tenant->subdomain]);
+            Mail::to($ownerEmail)->send(new TenantApprovedMail($tenant, $ownerEmail, $tenantLoginUrl, $generatedPassword));
+        } catch (\Throwable $exception) {
+            Log::warning('Failed to send tenant approval email.', [
+                'tenant_id' => $tenant->id,
+                'email' => $ownerEmail,
+                'error' => $exception->getMessage(),
+            ]);
+        }
 
         return redirect()->route('super-admin.dashboard')->with('status', "Tenant '{$tenant->name}' approved.");
     }
@@ -657,6 +679,45 @@ class SuperAdminController extends Controller
         ]));
 
         return $ownerRole;
+    }
+
+    protected function generateStrongPassword(int $length = 12): string
+    {
+        $length = max($length, 8);
+
+        $upperChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+        $lowerChars = 'abcdefghijkmnopqrstuvwxyz';
+        $numberChars = '23456789';
+        $symbolChars = '!@#$%^&*()-_=+[]{}?';
+
+        $required = [
+            $upperChars[random_int(0, strlen($upperChars) - 1)],
+            $lowerChars[random_int(0, strlen($lowerChars) - 1)],
+            $numberChars[random_int(0, strlen($numberChars) - 1)],
+            $symbolChars[random_int(0, strlen($symbolChars) - 1)],
+        ];
+
+        $allChars = $upperChars . $lowerChars . $numberChars . $symbolChars;
+        $remainingCount = $length - count($required);
+
+        for ($index = 0; $index < $remainingCount; $index++) {
+            $required[] = $allChars[random_int(0, strlen($allChars) - 1)];
+        }
+
+        shuffle($required);
+        $password = implode('', $required);
+
+        $policyPassed =
+            preg_match('/[A-Z]/', $password)
+            && preg_match('/[a-z]/', $password)
+            && preg_match('/\d/', $password)
+            && preg_match('/[^A-Za-z0-9]/', $password);
+
+        if (! $policyPassed) {
+            return $this->generateStrongPassword($length);
+        }
+
+        return $password;
     }
 
     public function renewTenantSubscription(Request $request, Tenant $tenant): RedirectResponse

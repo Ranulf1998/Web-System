@@ -36,6 +36,21 @@
                     @csrf
                     @method('PUT')
 
+                    @if ($canUpdateShopName)
+                        <div>
+                            <label class="dashboard-section-title" for="shop_name">Shop Name</label>
+                            <input
+                                id="shop_name"
+                                name="shop_name"
+                                type="text"
+                                value="{{ old('shop_name', $tenant->name) }}"
+                                class="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-700"
+                                required
+                            />
+                            <x-input-error :messages="$errors->get('shop_name')" class="mt-2" />
+                        </div>
+                    @endif
+
                     <div>
                         <div class="dashboard-section-title">Logo</div>
                         <div class="mt-3 flex flex-col gap-4 sm:flex-row sm:items-center">
