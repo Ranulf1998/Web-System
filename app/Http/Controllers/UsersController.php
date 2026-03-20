@@ -7,9 +7,10 @@ use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 use App\Support\ActivityLogger;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 
 class UsersController extends Controller
@@ -119,7 +120,7 @@ class UsersController extends Controller
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'email', 'max:255', 'unique:tenant.users,email'],
             'password' => ['required', 'confirmed', 'min:8'],
             'role' => ['required', 'string'],
         ]);
@@ -162,7 +163,7 @@ class UsersController extends Controller
         $user = User::findOrFail($user);
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $user->id],
+            'email' => ['required', 'email', 'max:255', Rule::unique('tenant.users', 'email')->ignore($user->id)],
             'password' => ['nullable', 'confirmed', 'min:8'],
             'role' => ['required', 'string'],
             'permissions' => ['nullable', 'array'],

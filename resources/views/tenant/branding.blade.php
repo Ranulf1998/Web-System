@@ -76,7 +76,7 @@
 
                     <div class="flex items-center gap-3">
                         <x-primary-button>Save Branding</x-primary-button>
-                        <a href="{{ route('dashboard') }}" class="text-sm text-slate-500 hover:text-slate-700">Cancel</a>
+                        <a href="{{ route('tenant.dashboard') }}" class="text-sm text-slate-500 hover:text-slate-700">Cancel</a>
                     </div>
                 </form>
             </div>

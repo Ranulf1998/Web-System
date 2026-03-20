@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\SupportTicket;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 class SupportTicketController extends Controller
@@ -37,10 +38,14 @@ class SupportTicketController extends Controller
 
         $tenant = tenant();
         $user = $request->user();
+        $centralUserId = DB::connection('central')
+            ->table('users')
+            ->where('email', (string) $user->email)
+            ->value('id');
 
         SupportTicket::create([
             'tenant_id' => $tenant?->id ?? $user->tenant_id,
-            'user_id' => $user->id,
+            'user_id' => $centralUserId ? (int) $centralUserId : null,
             'shop_name' => (string) ($tenant?->name ?? 'Unknown Shop'),
             'subdomain' => (string) ($tenant?->subdomain ?? ''),
             'subject' => $validated['subject'],

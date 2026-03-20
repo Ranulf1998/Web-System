@@ -38,10 +38,20 @@
             </div>
         @endif
 
+        @if ($errors->has('tenant_approval'))
+            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {{ $errors->first('tenant_approval') }}
+            </div>
+        @endif
+
         <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-xl border border-slate-200 bg-white p-5">
                 <div class="text-sm text-slate-500">Total Tenants</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['tenants']) }}</div>
+            </div>
+            <div class="rounded-xl border border-slate-200 bg-white p-5">
+                <div class="text-sm text-slate-500">Pending Registrations</div>
+                <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['pending_registrations']) }}</div>
             </div>
             <div class="rounded-xl border border-slate-200 bg-white p-5">
                 <div class="text-sm text-slate-500">Active Subscriptions</div>
@@ -135,6 +145,72 @@
             </div>
         </section>
 
+        @php
+            $pendingRegistrations = $currentTenants->filter(function ($tenant) {
+                return strtolower((string) ($tenant->display_registration_status ?? 'approved')) === 'pending';
+            });
+        @endphp
+
+        <section class="rounded-xl border border-slate-200 bg-white p-6">
+            <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold">Pending Registrations</h2>
+                <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                    {{ number_format($pendingRegistrations->count()) }} Pending
+                </span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Name</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Subdomain</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Tenant Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Plan</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Submitted</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 bg-white">
+                        @forelse ($pendingRegistrations as $tenant)
+                            <tr>
+                                <td class="px-4 py-3 text-sm text-slate-800">{{ $tenant->name }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->subdomain }}.{{ config('app.domain') }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_email }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ ucfirst((string) $tenant->plan) }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">
+                                    @php
+                                        $requestedAt = $tenant->display_requested_at;
+                                    @endphp
+                                    @if (is_string($requestedAt) && trim($requestedAt) !== '')
+                                        {{ \Illuminate\Support\Carbon::parse($requestedAt)->format('M j, Y g:i A') }}
+                                    @else
+                                        {{ $tenant->created_at?->format('M j, Y g:i A') }}
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600">
+                                    <div class="flex items-center gap-2">
+                                        <form method="POST" action="{{ route('super-admin.tenants.approve', $tenant) }}" onsubmit="return confirm('Approve this tenant registration?');">
+                                            @csrf
+                                            <button type="submit" class="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50">Approve</button>
+                                        </form>
+                                        <form method="POST" action="{{ route('super-admin.tenants.decline', $tenant) }}" onsubmit="return confirm('Decline this tenant registration?');">
+                                            @csrf
+                                            <button type="submit" class="rounded-md border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50">Decline</button>
+                                        </form>
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="px-4 py-6 text-center text-sm text-slate-500">No pending registrations.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
         <section class="rounded-xl border border-slate-200 bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Tenant Management - Current Tenants</h2>
@@ -149,6 +225,9 @@
                         <tr>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Name</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Subdomain</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Tenant Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Address</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Subdomain Owner</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Plan</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Lease Time</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Storage Use / DB</th>
@@ -167,7 +246,19 @@
                                         </div>
                                     @endif
                                 </td>
-                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->subdomain }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">
+                                    <a
+                                        href="{{ route('tenant.login', ['subdomain' => $tenant->subdomain]) }}"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        class="text-indigo-600 hover:text-indigo-500 hover:underline"
+                                    >
+                                        {{ $tenant->subdomain }}.{{ config('app.domain') }}
+                                    </a>
+                                </td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_email }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_address }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_owner_name }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ ucfirst((string) $tenant->plan) }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
                                     @if ($tenant->display_lease_starts_at && $tenant->display_lease_ends_at)
@@ -238,7 +329,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="7" class="px-4 py-6 text-center text-sm text-slate-500">No tenants found.</td>
+                                <td colspan="10" class="px-4 py-6 text-center text-sm text-slate-500">No tenants found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -275,7 +366,7 @@
                     @forelse ($currentTenants as $tenantDomainItem)
                         <li class="px-4 py-3 text-sm text-slate-700">
                             <a
-                                href="{{ url('http://' . $tenantDomainItem->subdomain . '.' . $baseDomain . '/login') }}"
+                                href="{{ route('tenant.login', ['subdomain' => $tenantDomainItem->subdomain]) }}"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 class="text-indigo-600 hover:text-indigo-500 hover:underline"
@@ -306,6 +397,15 @@
                     <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Subdomain</div>
                     <div class="mt-1 text-sm text-slate-700" data-tenant-detail="subdomain">-</div>
 
+                    <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Tenant Email</div>
+                    <div class="mt-1 text-sm text-slate-700" data-tenant-detail="email">-</div>
+
+                    <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Address</div>
+                    <div class="mt-1 text-sm text-slate-700" data-tenant-detail="address">-</div>
+
+                    <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Subdomain Owner</div>
+                    <div class="mt-1 text-sm text-slate-700" data-tenant-detail="owner">-</div>
+
                     <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Plan</div>
                     <div class="mt-1 text-sm text-slate-700" data-tenant-detail="plan">-</div>
 
@@ -332,22 +432,48 @@
                         <select id="tenant-management-selector" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm">
                             <option value="">Select a tenant</option>
                             @foreach ($currentTenants as $tenant)
+                                @php
+                                    $registrationStatus = strtolower((string) ($tenant->display_registration_status ?? 'approved'));
+                                    $statusLabel = $registrationStatus === 'pending'
+                                        ? 'Pending Approval'
+                                        : ($registrationStatus === 'declined' ? 'Declined' : ($tenant->display_is_suspended ? 'Suspended' : 'Active'));
+                                @endphp
                                 <option
                                     value="{{ $tenant->id }}"
                                     data-tenant-id="{{ $tenant->id }}"
                                     data-tenant-name="{{ $tenant->name }}"
                                     data-tenant-subdomain="{{ $tenant->subdomain }}"
+                                    data-tenant-email="{{ $tenant->display_tenant_email }}"
+                                    data-tenant-address="{{ $tenant->display_tenant_address }}"
+                                    data-tenant-owner="{{ $tenant->display_owner_name }}"
                                     data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
                                     data-tenant-lease="{{ $tenant->display_lease_starts_at?->format('M j, Y') }} - {{ $tenant->display_lease_ends_at?->format('M j, Y') }}"
                                     data-tenant-months="{{ $tenant->display_subscription_months }}"
                                     data-tenant-storage="{{ is_int($tenant->database_bytes) ? number_format($tenant->database_bytes / 1024 / 1024, 2) . ' MB' : 'N/A' }}"
                                     data-tenant-db="{{ $tenant->database_name ?? 'N/A' }}"
-                                    data-tenant-status="{{ $tenant->display_is_suspended ? 'Suspended' : 'Active' }}"
+                                    data-tenant-status="{{ $statusLabel }}"
                                 >
                                     {{ $tenant->name }} ({{ $tenant->subdomain }})
                                 </option>
                             @endforeach
                         </select>
+                    </div>
+
+                    <div class="mt-4 border-t border-slate-200 pt-4">
+                        <h3 class="text-sm font-semibold text-slate-800">Registration Review</h3>
+                        <p class="mt-1 text-xs text-slate-500">Approve or decline tenant registration submissions.</p>
+
+                        <form method="POST" action="{{ route('super-admin.tenants.approve', ['tenant' => '__TENANT_ID__']) }}" data-tenant-approve-form class="mt-3">
+                            @csrf
+                            <button type="submit" data-tenant-approve-submit disabled class="rounded-md border border-emerald-300 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50">Approve Selected Tenant</button>
+                        </form>
+
+                        <form method="POST" action="{{ route('super-admin.tenants.decline', ['tenant' => '__TENANT_ID__']) }}" data-tenant-decline-form class="mt-3">
+                            @csrf
+                            <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Decline Reason (optional)</label>
+                            <input name="reason" type="text" maxlength="255" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Suspicious or incomplete registration details.">
+                            <button type="submit" data-tenant-decline-submit disabled class="mt-3 rounded-md border border-amber-300 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">Decline Selected Tenant</button>
+                        </form>
                     </div>
 
                     <form method="POST" action="{{ route('super-admin.tenants.suspend', ['tenant' => '__TENANT_ID__']) }}" data-tenant-suspend-form class="mt-3">
@@ -385,6 +511,9 @@
                                 value="{{ $tenant->id }}"
                                 data-tenant-id="{{ $tenant->id }}"
                                 data-tenant-name="{{ $tenant->name }}"
+                                data-tenant-email="{{ $tenant->display_tenant_email }}"
+                                data-tenant-address="{{ $tenant->display_tenant_address }}"
+                                data-tenant-owner="{{ $tenant->display_owner_name }}"
                                 data-tenant-plan-key="{{ $tenant->planKey() }}"
                                 data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
                                 data-tenant-subdomain="{{ $tenant->subdomain }}"
@@ -401,6 +530,9 @@
 
                     <div class="mt-4 space-y-2 text-sm text-slate-700">
                         <div><span class="font-medium">Name:</span> <span data-subscription-detail="name">-</span></div>
+                        <div><span class="font-medium">Tenant Email:</span> <span data-subscription-detail="email">-</span></div>
+                        <div><span class="font-medium">Address:</span> <span data-subscription-detail="address">-</span></div>
+                        <div><span class="font-medium">Subdomain Owner:</span> <span data-subscription-detail="owner">-</span></div>
                         <div><span class="font-medium">Plan:</span> <span data-subscription-detail="plan">-</span></div>
                         <div><span class="font-medium">Current Lease End:</span> <span data-subscription-detail="lease_end">-</span></div>
                         <div><span class="font-medium">Subscribed Months:</span> <span data-subscription-detail="months">-</span></div>
@@ -808,6 +940,9 @@
             const subscriptionHistoryBody = document.querySelector('[data-subscription-renewal-history]');
             const subscriptionDetails = {
                 name: document.querySelector('[data-subscription-detail="name"]'),
+                email: document.querySelector('[data-subscription-detail="email"]'),
+                address: document.querySelector('[data-subscription-detail="address"]'),
+                owner: document.querySelector('[data-subscription-detail="owner"]'),
                 plan: document.querySelector('[data-subscription-detail="plan"]'),
                 lease_end: document.querySelector('[data-subscription-detail="lease_end"]'),
                 months: document.querySelector('[data-subscription-detail="months"]'),
@@ -859,6 +994,9 @@
             const updateSubscriptionDetails = (source) => {
                 if (!source || !source.value) {
                     if (subscriptionDetails.name) subscriptionDetails.name.textContent = '-';
+                    if (subscriptionDetails.email) subscriptionDetails.email.textContent = '-';
+                    if (subscriptionDetails.address) subscriptionDetails.address.textContent = '-';
+                    if (subscriptionDetails.owner) subscriptionDetails.owner.textContent = '-';
                     if (subscriptionDetails.plan) subscriptionDetails.plan.textContent = '-';
                     if (subscriptionDetails.lease_end) subscriptionDetails.lease_end.textContent = '-';
                     if (subscriptionDetails.months) subscriptionDetails.months.textContent = '-';
@@ -872,6 +1010,9 @@
                 const get = (key, fallback = '-') => source.getAttribute(`data-tenant-${key}`) || fallback;
 
                 if (subscriptionDetails.name) subscriptionDetails.name.textContent = get('name');
+                if (subscriptionDetails.email) subscriptionDetails.email.textContent = get('email');
+                if (subscriptionDetails.address) subscriptionDetails.address.textContent = get('address');
+                if (subscriptionDetails.owner) subscriptionDetails.owner.textContent = get('owner');
                 if (subscriptionDetails.plan) subscriptionDetails.plan.textContent = get('plan');
                 if (subscriptionDetails.lease_end) subscriptionDetails.lease_end.textContent = get('lease-end');
                 if (subscriptionDetails.months) subscriptionDetails.months.textContent = `${get('months')} month(s)`;
@@ -933,6 +1074,9 @@
             const tenantDetailNodes = {
                 name: document.querySelector('[data-tenant-detail="name"]'),
                 subdomain: document.querySelector('[data-tenant-detail="subdomain"]'),
+                email: document.querySelector('[data-tenant-detail="email"]'),
+                address: document.querySelector('[data-tenant-detail="address"]'),
+                owner: document.querySelector('[data-tenant-detail="owner"]'),
                 plan: document.querySelector('[data-tenant-detail="plan"]'),
                 lease: document.querySelector('[data-tenant-detail="lease"]'),
                 months: document.querySelector('[data-tenant-detail="months"]'),
@@ -944,19 +1088,33 @@
             const tenantUnsuspendForm = document.querySelector('[data-tenant-unsuspend-form]');
             const tenantSuspendSubmit = document.querySelector('[data-tenant-suspend-submit]');
             const tenantUnsuspendSubmit = document.querySelector('[data-tenant-unsuspend-submit]');
+            const tenantApproveForm = document.querySelector('[data-tenant-approve-form]');
+            const tenantDeclineForm = document.querySelector('[data-tenant-decline-form]');
+            const tenantApproveSubmit = document.querySelector('[data-tenant-approve-submit]');
+            const tenantDeclineSubmit = document.querySelector('[data-tenant-decline-submit]');
             const tenantSelector = document.getElementById('tenant-management-selector');
 
             const updateTenantActions = (tenantId) => {
                 if (!tenantSuspendForm || !tenantUnsuspendForm || !tenantId) {
                     if (tenantSuspendSubmit) tenantSuspendSubmit.disabled = true;
                     if (tenantUnsuspendSubmit) tenantUnsuspendSubmit.disabled = true;
+                    if (tenantApproveSubmit) tenantApproveSubmit.disabled = true;
+                    if (tenantDeclineSubmit) tenantDeclineSubmit.disabled = true;
                     return;
                 }
 
                 tenantSuspendForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/suspend`;
                 tenantUnsuspendForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/unsuspend`;
+                if (tenantApproveForm) {
+                    tenantApproveForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/approve`;
+                }
+                if (tenantDeclineForm) {
+                    tenantDeclineForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/decline`;
+                }
                 if (tenantSuspendSubmit) tenantSuspendSubmit.disabled = false;
                 if (tenantUnsuspendSubmit) tenantUnsuspendSubmit.disabled = false;
+                if (tenantApproveSubmit) tenantApproveSubmit.disabled = false;
+                if (tenantDeclineSubmit) tenantDeclineSubmit.disabled = false;
             };
 
             const fillTenantDetails = (source) => {
@@ -968,6 +1126,9 @@
 
                 if (tenantDetailNodes.name) tenantDetailNodes.name.textContent = get('name');
                 if (tenantDetailNodes.subdomain) tenantDetailNodes.subdomain.textContent = get('subdomain');
+                if (tenantDetailNodes.email) tenantDetailNodes.email.textContent = get('email');
+                if (tenantDetailNodes.address) tenantDetailNodes.address.textContent = get('address');
+                if (tenantDetailNodes.owner) tenantDetailNodes.owner.textContent = get('owner');
                 if (tenantDetailNodes.plan) tenantDetailNodes.plan.textContent = get('plan');
                 if (tenantDetailNodes.lease) tenantDetailNodes.lease.textContent = get('lease');
                 if (tenantDetailNodes.months) tenantDetailNodes.months.textContent = `${get('months')} month(s)`;
@@ -987,6 +1148,9 @@
 
                         if (tenantDetailNodes.name) tenantDetailNodes.name.textContent = 'Select a tenant';
                         if (tenantDetailNodes.subdomain) tenantDetailNodes.subdomain.textContent = '-';
+                        if (tenantDetailNodes.email) tenantDetailNodes.email.textContent = '-';
+                        if (tenantDetailNodes.address) tenantDetailNodes.address.textContent = '-';
+                        if (tenantDetailNodes.owner) tenantDetailNodes.owner.textContent = '-';
                         if (tenantDetailNodes.plan) tenantDetailNodes.plan.textContent = '-';
                         if (tenantDetailNodes.lease) tenantDetailNodes.lease.textContent = '-';
                         if (tenantDetailNodes.months) tenantDetailNodes.months.textContent = '-';

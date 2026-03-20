@@ -150,12 +150,6 @@
                     </div>
                 </div>
                 <div class="flex flex-wrap items-center gap-3 text-sm">
-                    <form method="GET" action="{{ url('/shop-login') }}" class="flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 shadow-sm ring-1 ring-[#e6d9c7]">
-                        <span class="text-xs uppercase tracking-wide text-[#7d6d5a]">Shop</span>
-                        <input type="text" name="subdomain" placeholder="Enter Shop" required
-                               class="w-28 bg-transparent text-sm text-[#1c1b16] placeholder:text-[#9b8b7a] focus:outline-none">
-                        <button type="submit" class="rounded-full bg-gradient-to-r from-[#1c1b16] to-[#6b4f3a] px-3 py-1 text-xs font-semibold text-white">Enter</button>
-                    </form>
                     <a href="{{ url('/super-admin/login') }}"
                        class="rounded-full border border-[#5f4f97] bg-[#ede9ff] px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#4a3d82] transition duration-200 hover:-translate-y-0.5 hover:bg-[#5f4f97] hover:text-white">
                         Admin Login

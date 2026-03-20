@@ -13,8 +13,6 @@ class User extends Authenticatable
 {
     use HasFactory, Notifiable, BelongsToTenant, HasRoles;
 
-    protected $connection = 'central';
-
     /**
      * The attributes that are mass assignable.
      *
@@ -66,5 +64,10 @@ class User extends Authenticatable
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class);
+    }
+
+    public function getConnectionName()
+    {
+        return $this->connection ?? (tenant() ? 'tenant' : 'central');
     }
 }

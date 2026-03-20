@@ -12,23 +12,55 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        $middleware->redirectGuestsTo(function (Request $request) {
-            $subdomain = $request->route('subdomain')
-                ?? (app()->bound('tenant') ? app('tenant')->subdomain : null);
+        $middleware->web(prepend: [
+            \App\Http\Middleware\ConfigureSessionByHost::class,
+        ]);
+
+        $getSubdomain = function (Request $request) {
+            $host = $request->getHost();
+            $mainDomain = config('app.domain');
+            
+            // If on main domain, no subdomain
+            if ($host === $mainDomain || strpos($host, 'localhost') !== false) {
+                return null;
+            }
+            
+            $parts = explode('.', $host);
+            $subdomain = $parts[0] ?? null;
+            
+            // If subdomain is 'www' or matches main domain, it's not really a subdomain
+            if ($subdomain === 'www' || $subdomain === '') {
+                return null;
+            }
+            
+            return $subdomain;
+        };
+
+        $middleware->redirectGuestsTo(function (Request $request) use ($getSubdomain) {
+            $subdomain = $getSubdomain($request);
 
             return $subdomain
-                ? route('login', ['subdomain' => $subdomain], false)
+                ? route('tenant.login', ['subdomain' => $subdomain], false)
                 : route('home', [], false);
         });
 
-        $middleware->redirectUsersTo(function (Request $request) {
-            $subdomain = $request->route('subdomain')
-                ?? (app()->bound('tenant') ? app('tenant')->subdomain : null)
-                ?? $request->user()?->tenant?->subdomain;
+        $middleware->redirectUsersTo(function (Request $request) use ($getSubdomain) {
+            $user = $request->user();
+            $subdomain = $getSubdomain($request);
 
-            return $subdomain
-                ? route('dashboard', ['subdomain' => $subdomain], false)
-                : route('home', [], false);
+            if ($subdomain) {
+                if ($user?->tenant_id === null) {
+                    return route('super-admin.dashboard', [], true);
+                }
+
+                return route('tenant.dashboard', ['subdomain' => $subdomain], false);
+            }
+
+            if ($user?->tenant_id === null) {
+                return route('super-admin.dashboard', [], false);
+            }
+
+            return route('home', [], false);
         });
 
         $middleware->alias([

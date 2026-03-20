@@ -4,8 +4,9 @@ namespace App\Http\Middleware;
 
 use Closure;
 use App\Models\Tenant;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\URL;
+use Stancl\Tenancy\Tenancy;
 
 class IdentifyTenant
 {
@@ -24,6 +25,27 @@ class IdentifyTenant
 
         $tenant = Tenant::on('central')->where('subdomain', $subdomain)->firstOrFail();
 
+        $registrationStatus = strtolower(trim((string) data_get($tenant->settings, 'status.registration', 'approved')));
+
+        if ($registrationStatus === 'pending') {
+            return response()->view('tenant.registration-status', [
+                'tenant' => $tenant,
+                'status' => 'pending',
+                'requested_at' => (string) data_get($tenant->settings, 'status.requested_at', ''),
+                'reason' => '',
+            ], 423);
+        }
+
+        if ($registrationStatus === 'declined') {
+            return response()->view('tenant.registration-status', [
+                'tenant' => $tenant,
+                'status' => 'declined',
+                'requested_at' => (string) data_get($tenant->settings, 'status.requested_at', ''),
+                'reason' => (string) data_get($tenant->settings, 'status.decline_reason', ''),
+                'reviewed_at' => (string) data_get($tenant->settings, 'status.declined_at', ''),
+            ], 403);
+        }
+
         $suspendedAt = data_get($tenant->settings, 'status.suspended_at');
         $isSuspended = is_string($suspendedAt) && trim($suspendedAt) !== '';
 
@@ -35,7 +57,7 @@ class IdentifyTenant
             ], 423);
         }
 
-        $this->configureTenantConnection($tenant);
+        app(Tenancy::class)->initialize($tenant);
 
         // Bind tenant to the service container for easy access
         app()->instance('tenant', $tenant);
@@ -46,26 +68,36 @@ class IdentifyTenant
         // Make route() automatically include {subdomain} for tenant routes.
         URL::defaults(['subdomain' => $tenant->subdomain]);
 
-        return $next($request);
-    }
+        // Reconcile authenticated session against the tenant database.
+        // This prevents central-session users from leaking into tenant subdomains
+        // while preserving valid tenant logins (including remember-me restoration).
+        if (Auth::check()) {
+            $currentUser = Auth::user();
+            $sessionUserId = Auth::id();
 
-    protected function configureTenantConnection(Tenant $tenant): void
-    {
-        $database = data_get($tenant->settings, 'database');
+            $tenantUser = null;
 
-        if (!is_array($database) || empty($database['database'])) {
-            abort(500, 'Tenant database is not configured.');
+            if ($currentUser && isset($currentUser->email)) {
+                $tenantUser = \App\Models\User::on('tenant')
+                    ->where('email', (string) $currentUser->email)
+                    ->first();
+            }
+
+            if (! $tenantUser && $sessionUserId !== null) {
+                $tenantUser = \App\Models\User::on('tenant')->find($sessionUserId);
+            }
+
+            if (! $tenantUser || (int) $tenantUser->tenant_id !== (int) $tenant->id) {
+                Auth::logout();
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+
+                return redirect()->route('tenant.login', ['subdomain' => $tenant->subdomain]);
+            }
+
+            Auth::setUser($tenantUser);
         }
 
-        config([
-            'database.connections.tenant.host' => $database['host'] ?? config('database.connections.tenant.host'),
-            'database.connections.tenant.port' => $database['port'] ?? config('database.connections.tenant.port'),
-            'database.connections.tenant.database' => $database['database'],
-            'database.connections.tenant.username' => $database['username'] ?? config('database.connections.tenant.username'),
-            'database.connections.tenant.password' => $database['password'] ?? config('database.connections.tenant.password'),
-        ]);
-
-        DB::purge('tenant');
-        DB::reconnect('tenant');
+        return $next($request);
     }
 }

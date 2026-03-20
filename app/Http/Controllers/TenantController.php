@@ -12,12 +12,14 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
 use App\Services\TenantDatabaseProvisioner;
+use Stancl\Tenancy\Tenancy;
 use Stripe\Checkout\Session as StripeCheckoutSession;
 use Stripe\Stripe;
 
@@ -38,34 +40,35 @@ class TenantController extends Controller
             'delete users',
         ];
 
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate([
-                'name' => $permission,
-                'guard_name' => 'web',
-            ]);
-        }
+        $tenantPermissions = collect($permissions)
+            ->map(function (string $permissionName) {
+                return Permission::on('tenant')->firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'web',
+                ]);
+            });
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $ownerRole = Role::firstOrCreate([
+        $ownerRole = Role::on('tenant')->firstOrCreate([
             'name' => 'Owner',
             'guard_name' => 'web',
             'tenant_id' => $tenant->id,
         ]);
-        $ownerRole->syncPermissions($permissions);
+        $ownerRole->syncPermissions($tenantPermissions);
 
-        $cashierRole = Role::firstOrCreate([
+        $cashierRole = Role::on('tenant')->firstOrCreate([
             'name' => 'Cashier',
             'guard_name' => 'web',
             'tenant_id' => $tenant->id,
         ]);
-        $cashierRole->syncPermissions([
+        $cashierRole->syncPermissions($tenantPermissions->whereIn('name', [
             'use pos',
             'create orders',
             'process payments',
             'view products',
             'view brewing guides',
-        ]);
+        ]));
 
         return $ownerRole;
     }
@@ -127,7 +130,7 @@ class TenantController extends Controller
             'subdomain' => 'required|alpha_dash|exists:tenants,subdomain',
         ]);
 
-        return redirect()->to(route('login', ['subdomain' => $data['subdomain']]));
+        return redirect()->to(route('tenant.login', ['subdomain' => $data['subdomain']]));
     }
 
     public function store(Request $request, TenantDatabaseProvisioner $databaseProvisioner): ViewContract|RedirectResponse
@@ -352,13 +355,15 @@ class TenantController extends Controller
 
         $data = $request->validate([
             'shop_name' => 'required',
+            'address' => 'required|string|max:255',
             'subdomain' => 'required|unique:tenants,subdomain|alpha_dash',
             'plan' => "required|in:{$allowedPlans}",
             'payment_method' => 'required|in:gcash,stripe',
             'subscription_months' => 'required|integer|min:1|max:24',
             'name' => 'required',
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email',
             'password' => 'required|confirmed|min:8',
+            'terms' => 'accepted',
         ]);
 
         $data['subdomain'] = strtolower(Str::slug((string) $data['subdomain']));
@@ -379,81 +384,70 @@ class TenantController extends Controller
         $totalSubscriptionAmount = $monthlyPlanPrice * (int) $data['subscription_months'];
 
         $databaseName = $databaseProvisioner->generateDatabaseName($data['subdomain']);
-        $tenant = null;
-        $databaseCreated = false;
-
-        try {
-            $tenant = Tenant::create([
-                'name' => $data['shop_name'],
-                'subdomain' => $data['subdomain'],
-                'plan' => $data['plan'],
-                'lease_starts_at' => $leaseStart,
-                'lease_ends_at' => $leaseEnd,
-                'settings' => [
-                    'subscription' => [
-                        'payment_method' => $data['payment_method'],
-                        'months' => $data['subscription_months'],
-                        'monthly_price' => $monthlyPlanPrice,
-                        'total_amount' => $totalSubscriptionAmount,
-                        'currency' => 'PHP',
-                        'payment_status' => $data['payment_method'] === 'stripe' ? 'paid' : 'pending',
-                        'stripe_checkout_session_id' => $data['stripe_checkout_session_id'] ?? null,
-                        'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
-                    ],
-                    'database' => [
-                        'host' => config('tenancy.tenant_host'),
-                        'port' => config('tenancy.tenant_port'),
-                        'database' => $databaseName,
-                        'username' => config('tenancy.tenant_username'),
-                        'password' => config('tenancy.tenant_password'),
+        $tenant = Tenant::create([
+            'name' => $data['shop_name'],
+            'subdomain' => $data['subdomain'],
+            'plan' => $data['plan'],
+            'lease_starts_at' => $leaseStart,
+            'lease_ends_at' => $leaseEnd,
+            'settings' => [
+                'status' => [
+                    'registration' => 'pending',
+                    'requested_at' => now()->toIso8601String(),
+                ],
+                'address' => $data['address'],
+                'subscription' => [
+                    'payment_method' => $data['payment_method'],
+                    'months' => $data['subscription_months'],
+                    'monthly_price' => $monthlyPlanPrice,
+                    'total_amount' => $totalSubscriptionAmount,
+                    'currency' => 'PHP',
+                    'payment_status' => $data['payment_method'] === 'stripe' ? 'paid' : 'pending',
+                    'stripe_checkout_session_id' => $data['stripe_checkout_session_id'] ?? null,
+                    'stripe_payment_intent_id' => $data['stripe_payment_intent_id'] ?? null,
+                ],
+                'database' => [
+                    'host' => config('tenancy.tenant_host'),
+                    'port' => config('tenancy.tenant_port'),
+                    'database' => $databaseName,
+                    'username' => config('tenancy.tenant_username'),
+                    'password' => config('tenancy.tenant_password'),
+                ],
+                'onboarding' => [
+                    'owner' => [
+                        'name' => (string) $data['name'],
+                        'email' => (string) $data['email'],
+                        'password_hash' => Hash::make((string) $data['password']),
                     ],
                 ],
-            ]);
-
-            $databaseProvisioner->createDatabase($databaseName);
-            $databaseCreated = true;
-
-            $databaseProvisioner->runTenantMigrations($tenant);
-
-            DB::connection('central')->transaction(function () use ($data, $tenant) {
-                $user = User::create([
-                    'tenant_id' => $tenant->id,
-                    'name' => $data['name'],
-                    'email' => $data['email'],
-                    'password' => Hash::make($data['password']),
-                ]);
-
-                $ownerRole = $this->seedTenantRoles($tenant);
-                $user->assignRole($ownerRole);
-
-                app(PermissionRegistrar::class)->forgetCachedPermissions();
-            });
-        } catch (\Throwable $exception) {
-            if ($databaseCreated) {
-                $databaseProvisioner->dropDatabase($databaseName);
-            }
-
-            if ($tenant && $tenant->exists) {
-                $tenant->delete();
-            }
-
-            throw $exception;
-        }
-
-        $tenantLoginUrl = route('login', ['subdomain' => $tenant->subdomain]);
-
-        $hostReady = $this->addLocalSubdomainHost($tenant->subdomain);
+            ],
+        ]);
 
         $payload = [
-            'success' => 'Shop created successfully.',
-            'tenant_login_url' => $tenantLoginUrl,
+            'success' => 'Registration in progress. We’ll email your login link and credentials once approved.',
             'tenant_subdomain' => $tenant->subdomain,
         ];
 
-        if (! $hostReady) {
-            $payload['warning'] = 'Automatic redirect could not be completed locally. Click the login link below.';
+        return redirect()->route('tenant.register')->with($payload);
+    }
+
+    protected function configureTenantConnection(Tenant $tenant): void
+    {
+        $database = data_get($tenant->settings, 'database');
+
+        if (! is_array($database) || empty($database['database'])) {
+            throw new \RuntimeException('Tenant database settings are missing.');
         }
 
-        return redirect()->route('tenant.register')->with($payload);
+        config([
+            'database.connections.tenant.host' => $database['host'] ?? config('database.connections.tenant.host'),
+            'database.connections.tenant.port' => $database['port'] ?? config('database.connections.tenant.port'),
+            'database.connections.tenant.database' => $database['database'],
+            'database.connections.tenant.username' => $database['username'] ?? config('database.connections.tenant.username'),
+            'database.connections.tenant.password' => $database['password'] ?? config('database.connections.tenant.password'),
+        ]);
+
+        DB::purge('tenant');
+        DB::reconnect('tenant');
     }
 }

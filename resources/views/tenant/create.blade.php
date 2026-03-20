@@ -12,28 +12,26 @@
 
     @php
         $successMessage = session('success') ?? ($success ?? null);
-        $tenantSubdomain = session('tenant_subdomain') ?? ($tenant_subdomain ?? null);
-        $tenantLoginUrl = session('tenant_login_url') ?? ($tenant_login_url ?? null);
         $plans = config('plans');
         $defaultPlan = old('plan', 'starter');
         $defaultMonths = max((int) old('subscription_months', 1), 1);
-        if (! $tenantLoginUrl && $tenantSubdomain && config('app.domain') !== 'localhost') {
-            $tenantLoginUrl = url("http://{$tenantSubdomain}." . config('app.domain') . '/login');
+        $planMetadata = [];
+        foreach ($plans as $planKey => $planConfig) {
+            $planMetadata[(string) $planKey] = [
+                'name' => (string) data_get($planConfig, 'name', 'Plan'),
+                'max_users' => data_get($planConfig, 'max_users'),
+                'features' => array_values(is_array(data_get($planConfig, 'features')) ? data_get($planConfig, 'features') : []),
+            ];
         }
         $warningMessage = session('warning') ?? ($warning ?? null);
     @endphp
 
-    @if ($tenantLoginUrl)
+    @if ($successMessage)
         <div class="mb-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-            <div class="font-semibold">{{ $successMessage ?? 'Shop created successfully.' }}</div>
+            <div class="font-semibold">{{ $successMessage }}</div>
             @if ($warningMessage)
                 <div class="mt-1">{{ $warningMessage }}</div>
             @endif
-            <div class="mt-1">
-                Your shop login is ready:
-                <a class="underline" href="{{ $tenantLoginUrl }}">{{ $tenantLoginUrl }}</a>
-            </div>
-            <div class="mt-1 text-xs text-green-700">Use the link above to log in to your shop.</div>
         </div>
     @endif
 
@@ -53,6 +51,13 @@
             <x-input-error :messages="$errors->get('shop_name')" class="mt-2" />
         </div>
 
+        <!-- Shop Address -->
+        <div class="mt-4">
+            <x-input-label for="address" :value="__('Shop Address')" />
+            <x-text-input id="address" class="block mt-1 w-full" type="text" name="address" :value="old('address')" required />
+            <x-input-error :messages="$errors->get('address')" class="mt-2" />
+        </div>
+
         <!-- Subdomain -->
         <div class="mt-4">
             <x-input-label for="subdomain" :value="__('Subdomain')" />
@@ -65,68 +70,22 @@
 
         <!-- Plan -->
         <div class="mt-6">
-            <x-input-label :value="__('Choose a Plan')" />
+            <x-input-label for="plan" :value="__('Choose a Plan')" />
+            <select id="plan" name="plan" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full">
+                @foreach ($plans as $planKey => $planConfig)
+                    <option
+                        value="{{ $planKey }}"
+                        data-plan-price="{{ data_get($planConfig, 'price', 0) }}"
+                        {{ $defaultPlan === $planKey ? 'selected' : '' }}
+                    >
+                        {{ data_get($planConfig, 'name', ucfirst((string) $planKey) . ' Plan') }} - ₱{{ number_format((float) data_get($planConfig, 'price', 0)) }} / month
+                    </option>
+                @endforeach
+            </select>
 
-            <div class="mt-3 space-y-3">
-                <label class="block border rounded-lg p-4 cursor-pointer">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <div class="font-semibold">Starter Plan</div>
-                            <ul class="list-disc ml-5 mt-2 text-sm text-gray-700">
-                                <li>POS system</li>
-                                <li>Product management</li>
-                                <li>Basic sales tracking</li>
-                                <li>1 user account</li>
-                                <li>Basic reports</li>
-                            </ul>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-semibold">₱{{ number_format($plans['starter']['price']) }} / month</div>
-                            <input class="mt-3 plan-option" type="radio" name="plan" value="starter" data-plan-price="{{ $plans['starter']['price'] }}" {{ $defaultPlan === 'starter' ? 'checked' : '' }}>
-                        </div>
-                    </div>
-                </label>
-
-                <label class="block border rounded-lg p-4 cursor-pointer">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <div class="font-semibold">Standard Plan</div>
-                            <ul class="list-disc ml-5 mt-2 text-sm text-gray-700">
-                                <li>POS system</li>
-                                <li>Product management</li>
-                                <li>Order queue</li>
-                                <li>Brewing guides</li>
-                                <li>Inventory management</li>
-                                <li>Sales reports</li>
-                                <li>Branding customization</li>
-                                <li>Up to 3 staff accounts</li>
-                            </ul>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-semibold">₱{{ number_format($plans['standard']['price']) }} / month</div>
-                            <input class="mt-3 plan-option" type="radio" name="plan" value="standard" data-plan-price="{{ $plans['standard']['price'] }}" {{ $defaultPlan === 'standard' ? 'checked' : '' }}>
-                        </div>
-                    </div>
-                </label>
-
-                <label class="block border rounded-lg p-4 cursor-pointer">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <div class="font-semibold">Business Plan</div>
-                            <ul class="list-disc ml-5 mt-2 text-sm text-gray-700">
-                                <li>All Standard features</li>
-                                <li>Unlimited staff accounts</li>
-                                <li>Advanced analytics</li>
-                                <li>Multi-branch support</li>
-                                <li>Priority support</li>
-                            </ul>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-semibold">₱{{ number_format($plans['business']['price']) }} / month</div>
-                            <input class="mt-3 plan-option" type="radio" name="plan" value="business" data-plan-price="{{ $plans['business']['price'] }}" {{ $defaultPlan === 'business' ? 'checked' : '' }}>
-                        </div>
-                    </div>
-                </label>
+            <div id="plan-details" class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                <div id="plan-details-title" class="font-semibold">Plan details</div>
+                <div id="plan-details-text" class="mt-1 text-gray-600">Select a plan to view details.</div>
             </div>
 
             <x-input-error :messages="$errors->get('plan')" class="mt-2" />
@@ -201,6 +160,14 @@
             <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
         </div>
 
+        <div class="mt-4">
+            <label for="terms" class="inline-flex items-center gap-2 text-sm text-gray-700">
+                <input id="terms" type="checkbox" name="terms" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" {{ old('terms') ? 'checked' : '' }} required>
+                <span>I agree to the Terms of Service (ToS).</span>
+            </label>
+            <x-input-error :messages="$errors->get('terms')" class="mt-2" />
+        </div>
+
         <div class="flex items-center justify-end mt-4">
             <div id="stripe-modal-error" class="mr-4 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
             <x-primary-button id="register-shop-submit" class="ml-4">
@@ -222,7 +189,9 @@
     <script src="https://js.stripe.com/v3/"></script>
     <script>
         (() => {
-            const planInputs = document.querySelectorAll('.plan-option');
+            const planInput = document.getElementById('plan');
+            const planDetailsTitle = document.getElementById('plan-details-title');
+            const planDetailsText = document.getElementById('plan-details-text');
             const monthsInput = document.getElementById('subscription_months');
             const monthlyPriceTarget = document.getElementById('monthly-price');
             const totalPriceTarget = document.getElementById('total-price');
@@ -233,10 +202,11 @@
             const stripeModal = document.getElementById('stripe-checkout-modal');
             const stripeModalClose = document.getElementById('stripe-modal-close');
             const stripeContainer = document.getElementById('stripe-checkout-container');
+            const planMetadata = @json($planMetadata);
 
             let embeddedCheckout = null;
 
-            if (!planInputs.length || !monthsInput || !monthlyPriceTarget || !totalPriceTarget || !registrationForm || !submitButton) {
+            if (!planInput || !monthsInput || !monthlyPriceTarget || !totalPriceTarget || !registrationForm || !submitButton) {
                 return;
             }
 
@@ -245,8 +215,8 @@
             };
 
             const getSelectedPlanPrice = () => {
-                const selected = document.querySelector('.plan-option:checked');
-                return selected ? Number(selected.getAttribute('data-plan-price') || 0) : 0;
+                const selectedOption = planInput.options[planInput.selectedIndex];
+                return selectedOption ? Number(selectedOption.getAttribute('data-plan-price') || 0) : 0;
             };
 
             const updatePricing = () => {
@@ -256,6 +226,32 @@
 
                 monthlyPriceTarget.textContent = formatCurrency(monthlyPrice);
                 totalPriceTarget.textContent = formatCurrency(total);
+            };
+
+            const humanizeFeature = (feature) => {
+                return String(feature || '')
+                    .replace(/_/g, ' ')
+                    .replace(/\b\w/g, (char) => char.toUpperCase());
+            };
+
+            const updatePlanDetails = () => {
+                const selectedPlanKey = planInput.value;
+                const selectedPlan = planMetadata[selectedPlanKey] || null;
+
+                if (!selectedPlan || !planDetailsTitle || !planDetailsText) {
+                    return;
+                }
+
+                const usersText = selectedPlan.max_users === null
+                    ? 'Unlimited staff accounts'
+                    : `Up to ${selectedPlan.max_users} staff account${selectedPlan.max_users === 1 ? '' : 's'}`;
+
+                const featureText = Array.isArray(selectedPlan.features) && selectedPlan.features.length
+                    ? selectedPlan.features.map(humanizeFeature).join(', ')
+                    : 'No feature list available';
+
+                planDetailsTitle.textContent = `${selectedPlan.name} Plan Details`;
+                planDetailsText.textContent = `${usersText}. Features: ${featureText}.`;
             };
 
             const showStripeError = (message) => {
@@ -392,9 +388,11 @@
                 });
             }
 
-            planInputs.forEach((input) => input.addEventListener('change', updatePricing));
+            planInput.addEventListener('change', updatePricing);
+            planInput.addEventListener('change', updatePlanDetails);
             monthsInput.addEventListener('change', updatePricing);
             updatePricing();
+            updatePlanDetails();
         })();
     </script>
 </x-guest-layout>

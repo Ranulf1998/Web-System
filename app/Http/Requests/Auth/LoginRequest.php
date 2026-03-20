@@ -48,7 +48,28 @@ class LoginRequest extends FormRequest
             $this->ip()
         );
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
+        $remember = $this->boolean('remember');
+
+        if (tenant()) {
+            $tenantCredentials = [
+                'email' => (string) $this->input('email'),
+                'password' => (string) $this->input('password'),
+                'tenant_id' => (int) tenant()->id,
+            ];
+
+            if (! Auth::attempt($tenantCredentials, $remember)) {
+                RateLimiter::hit($this->throttleKey());
+
+                throw ValidationException::withMessages([
+                    'email' => trans('auth.failed'),
+                ]);
+            }
+
+            RateLimiter::clear($this->throttleKey());
+            return;
+        }
+
+        if (! Auth::attempt($this->only('email', 'password'), $remember)) {
             RateLimiter::hit($this->throttleKey());
 
             throw ValidationException::withMessages([

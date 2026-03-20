@@ -3,12 +3,19 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Permission\Models\Permission;
+use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
+use Stancl\Tenancy\Contracts\TenantWithDatabase;
+use Stancl\Tenancy\Database\Concerns\CentralConnection;
+use Stancl\Tenancy\Database\Concerns\HasDatabase;
+use Stancl\Tenancy\Database\Concerns\InvalidatesResolverCache;
+use Stancl\Tenancy\Database\Concerns\TenantRun;
 
 
-class Tenant extends Model
+class Tenant extends Model implements TenantWithDatabase
 {
+    use CentralConnection, HasDatabase, TenantRun, InvalidatesResolverCache;
+
     protected $connection = 'central';
 
     protected $fillable = ['name', 'subdomain', 'plan', 'lease_starts_at', 'lease_ends_at', 'settings'];
@@ -18,6 +25,67 @@ class Tenant extends Model
         'lease_starts_at' => 'datetime',
         'lease_ends_at' => 'datetime',
     ];
+
+    public static function internalPrefix(): string
+    {
+        return 'tenancy_';
+    }
+
+    public function getTenantKeyName(): string
+    {
+        return 'id';
+    }
+
+    public function getTenantKey()
+    {
+        return $this->getAttribute($this->getTenantKeyName());
+    }
+
+    public function getInternal(string $key)
+    {
+        $database = data_get($this->settings, 'database', []);
+
+        return match ($key) {
+            'db_driver' => data_get($database, 'driver', config('database.connections.tenant.driver', 'mysql')),
+            'db_name' => data_get($database, 'database'),
+            'db_host' => data_get($database, 'host'),
+            'db_port' => data_get($database, 'port'),
+            'db_username' => data_get($database, 'username'),
+            'db_password' => data_get($database, 'password'),
+            'db_connection' => data_get($database, 'connection', $this->getAttribute(static::internalPrefix() . 'db_connection')),
+            default => $this->getAttribute(static::internalPrefix() . $key),
+        };
+    }
+
+    public function setInternal(string $key, $value)
+    {
+        $settings = is_array($this->settings) ? $this->settings : [];
+        $database = is_array(data_get($settings, 'database')) ? data_get($settings, 'database') : [];
+
+        if (str_starts_with($key, 'db_')) {
+            $map = [
+                'db_connection' => 'connection',
+                'db_driver' => 'driver',
+                'db_name' => 'database',
+                'db_host' => 'host',
+                'db_port' => 'port',
+                'db_username' => 'username',
+                'db_password' => 'password',
+            ];
+
+            if (array_key_exists($key, $map)) {
+                $database[$map[$key]] = $value;
+                $settings['database'] = $database;
+                $this->settings = $settings;
+
+                return $this;
+            }
+        }
+
+        $this->setAttribute(static::internalPrefix() . $key, $value);
+
+        return $this;
+    }
 
     public function users()
     {

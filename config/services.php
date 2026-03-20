@@ -46,6 +46,8 @@ return [
         'verify_url' => env('RECAPTCHA_VERIFY_URL', 'https://www.google.com/recaptcha/api/siteverify'),
         'fallback_verify_url' => env('RECAPTCHA_FALLBACK_VERIFY_URL', 'https://www.recaptcha.net/recaptcha/api/siteverify'),
         'allow_insecure_local_ssl' => env('RECAPTCHA_ALLOW_INSECURE_LOCAL_SSL', false),
+        'allow_local_bypass' => env('RECAPTCHA_ALLOW_LOCAL_BYPASS', false),
+        'local_bypass_token' => env('RECAPTCHA_LOCAL_BYPASS_TOKEN', 'local-bypass'),
     ],
 
 ];

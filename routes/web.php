@@ -41,6 +41,8 @@ Route::domain(config('app.domain'))->group(function () {
         Route::get('/super-admin/dashboard', [SuperAdminController::class, 'dashboard'])->name('super-admin.dashboard');
         Route::post('/super-admin/tenants/{tenant}/suspend', [SuperAdminController::class, 'suspendTenant'])->name('super-admin.tenants.suspend');
         Route::post('/super-admin/tenants/{tenant}/unsuspend', [SuperAdminController::class, 'unsuspendTenant'])->name('super-admin.tenants.unsuspend');
+        Route::post('/super-admin/tenants/{tenant}/approve', [SuperAdminController::class, 'approveTenant'])->name('super-admin.tenants.approve');
+        Route::post('/super-admin/tenants/{tenant}/decline', [SuperAdminController::class, 'declineTenant'])->name('super-admin.tenants.decline');
         Route::post('/super-admin/tenants/{tenant}/subscription/renew', [SuperAdminController::class, 'renewTenantSubscription'])->name('super-admin.tenants.subscription.renew');
         Route::patch('/super-admin/tenants/{tenant}/subscription/plan', [SuperAdminController::class, 'changeTenantSubscriptionPlan'])->name('super-admin.tenants.subscription.plan.update');
         Route::patch('/super-admin/support-tickets/{supportTicket}/status', [SuperAdminController::class, 'updateSupportTicketStatus'])->name('super-admin.support-tickets.status.update');
@@ -65,7 +67,7 @@ Route::domain('{subdomain}.' . config('app.domain'))
         // Guest routes (login, register for users of this tenant)
         Route::middleware('guest')->group(function () {
             Route::get('login', [App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'create'])
-                ->name('login');
+                ->name('tenant.login');
             Route::post('login', [App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'store']);
 
             // If you want tenant-specific user registration (e.g., cashier accounts)
@@ -88,10 +90,10 @@ Route::domain('{subdomain}.' . config('app.domain'))
         // Authenticated routes (require login)
         Route::middleware('auth')->group(function () {
             // Dashboard
-            Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+            Route::get('/dashboard', [DashboardController::class, 'index'])->name('tenant.dashboard');
 
             Route::post('logout', [App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'destroy'])
-                ->name('logout');
+                ->name('tenant.logout');
 
             // Email verification routes
             Route::get('verify-email', [App\Http\Controllers\Auth\EmailVerificationPromptController::class, '__invoke'])

@@ -8,6 +8,26 @@ use Illuminate\Validation\ValidationException;
 
 class RecaptchaVerifier
 {
+    protected function shouldAllowLocalBypass(): bool
+    {
+        if (! app()->environment('local')) {
+            return false;
+        }
+
+        return filter_var(config('services.recaptcha.allow_local_bypass', false), FILTER_VALIDATE_BOOL);
+    }
+
+    protected function isLocalBypassToken(?string $responseToken): bool
+    {
+        if (! is_string($responseToken)) {
+            return false;
+        }
+
+        $configuredToken = trim((string) config('services.recaptcha.local_bypass_token', 'local-bypass'));
+
+        return $configuredToken !== '' && hash_equals($configuredToken, trim($responseToken));
+    }
+
     protected function shouldAllowInsecureLocalSsl(): bool
     {
         if (! app()->environment('local')) {
@@ -45,6 +65,10 @@ class RecaptchaVerifier
 
     public function ensureValid(?string $responseToken, ?string $ipAddress = null): void
     {
+        if ($this->shouldAllowLocalBypass() && $this->isLocalBypassToken($responseToken)) {
+            return;
+        }
+
         if (! $this->enabled()) {
             throw ValidationException::withMessages([
                 'g-recaptcha-response' => 'reCAPTCHA is not configured. Set RECAPTCHA_SITE_KEY and RECAPTCHA_SECRET_KEY first.',
@@ -78,9 +102,13 @@ class RecaptchaVerifier
 
         foreach ($verifyUrls as $verifyUrl) {
             try {
-                $response = Http::asForm()
-                    ->timeout(10)
-                    ->post($verifyUrl, $payload);
+                $request = Http::asForm()->timeout(10);
+
+                if ($allowInsecureLocalSsl) {
+                    $request = $request->withOptions(['verify' => false]);
+                }
+
+                $response = $request->post($verifyUrl, $payload);
 
                 if (! $response->successful()) {
                     throw new \RuntimeException('reCAPTCHA verification endpoint returned HTTP ' . $response->status());

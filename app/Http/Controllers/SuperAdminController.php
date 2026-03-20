@@ -3,9 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Models\Permission;
 use App\Models\Product;
 use App\Models\Role;
 use App\Services\RecaptchaVerifier;
+use App\Services\TenantDatabaseProvisioner;
 use App\Models\SupportTicket;
 use App\Models\Tenant;
 use App\Models\User;
@@ -18,6 +20,8 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
+use Spatie\Permission\PermissionRegistrar;
+use Stancl\Tenancy\Tenancy;
 
 class SuperAdminController extends Controller
 {
@@ -140,6 +144,7 @@ class SuperAdminController extends Controller
             $databaseBytes = is_string($databaseName)
                 ? ($databaseUsageByName[$databaseName] ?? null)
                 : null;
+            $registrationStatus = strtolower(trim((string) data_get($tenant->settings, 'status.registration', 'approved')));
             $subscribedMonths = (int) data_get($tenant->settings, 'subscription.months', 0);
             $leaseStart = $tenant->lease_starts_at ?? $tenant->created_at;
             $leaseEnd = $tenant->lease_ends_at ?? $leaseStart?->copy()->addMonths(max($subscribedMonths, 1));
@@ -153,12 +158,47 @@ class SuperAdminController extends Controller
             }
 
             $displaySubscribedMonths = max($displaySubscribedMonths, 1);
+            $ownerSummary = $this->fetchTenantOwnerSummary($tenant);
+            $pendingOwnerName = trim((string) data_get($tenant->settings, 'onboarding.owner.name', ''));
+            $pendingOwnerEmail = trim((string) data_get($tenant->settings, 'onboarding.owner.email', ''));
+
+            $displayOwnerName = $ownerSummary['name'] ?? 'N/A';
+            if ($displayOwnerName === 'N/A' && $pendingOwnerName !== '') {
+                $displayOwnerName = $pendingOwnerName;
+            }
+
+            $displayOwnerEmail = $ownerSummary['email'] ?? 'N/A';
+            if ($displayOwnerEmail === 'N/A' && $pendingOwnerEmail !== '') {
+                $displayOwnerEmail = $pendingOwnerEmail;
+            }
+
+            $displayAddress = null;
+            $addressPaths = [
+                'contact.address',
+                'shop.address',
+                'business.address',
+                'tenant.address',
+                'address',
+            ];
+
+            foreach ($addressPaths as $addressPath) {
+                $candidate = data_get($tenant->settings, $addressPath);
+
+                if (is_string($candidate) && trim($candidate) !== '') {
+                    $displayAddress = trim($candidate);
+                    break;
+                }
+            }
 
             $tenant->setAttribute('database_name', $databaseName);
             $tenant->setAttribute('database_bytes', $databaseBytes);
             $tenant->setAttribute('display_lease_starts_at', $leaseStart);
             $tenant->setAttribute('display_lease_ends_at', $leaseEnd);
             $tenant->setAttribute('display_subscription_months', $displaySubscribedMonths);
+            $tenant->setAttribute('display_tenant_email', $displayOwnerEmail);
+            $tenant->setAttribute('display_tenant_address', $displayAddress ?: 'N/A');
+            $tenant->setAttribute('display_owner_name', $displayOwnerName);
+            $tenant->setAttribute('display_users_count', (int) ($ownerSummary['users_count'] ?? 0));
             $tenant->setAttribute('display_payment_method', (string) data_get($tenant->settings, 'subscription.payment_method', 'N/A'));
             $tenant->setAttribute('display_monthly_price', (float) data_get($tenant->settings, 'subscription.monthly_price', (float) config('plans.' . $tenant->planKey() . '.price', 0)));
             $tenant->setAttribute('display_renewal_history', array_values(array_filter(
@@ -170,12 +210,21 @@ class SuperAdminController extends Controller
             $tenant->setAttribute('display_is_suspended', $isSuspended);
             $tenant->setAttribute('display_suspended_at', $isSuspended ? Carbon::parse($suspendedAtRaw) : null);
             $tenant->setAttribute('display_suspension_reason', (string) data_get($tenant->settings, 'status.suspension_reason', ''));
+            $tenant->setAttribute('display_registration_status', $registrationStatus);
+            $tenant->setAttribute('display_requested_at', data_get($tenant->settings, 'status.requested_at'));
+            $tenant->setAttribute('display_approved_at', data_get($tenant->settings, 'status.approved_at'));
+            $tenant->setAttribute('display_declined_at', data_get($tenant->settings, 'status.declined_at'));
+            $tenant->setAttribute('display_decline_reason', (string) data_get($tenant->settings, 'status.decline_reason', ''));
 
             return $tenant;
         });
 
         $activeSubscriptions = $currentTenants->filter(function (Tenant $tenant) {
             $leaseEnd = $tenant->display_lease_ends_at;
+
+            if (($tenant->display_registration_status ?? 'approved') !== 'approved') {
+                return false;
+            }
 
             return ! $tenant->display_is_suspended
                 && $leaseEnd
@@ -266,13 +315,20 @@ class SuperAdminController extends Controller
             return (float) data_get($tenant->settings, 'subscription.total_amount', 0);
         });
 
+        $tenantUsersTotal = (int) $currentTenants->sum(function (Tenant $tenant) {
+            return (int) ($tenant->display_users_count ?? 0);
+        });
+
         $stats = [
             'tenants' => (int) $currentTenants->count(),
+            'pending_registrations' => (int) $currentTenants->filter(function (Tenant $tenant) {
+                return strtolower((string) ($tenant->display_registration_status ?? 'approved')) === 'pending';
+            })->count(),
             'active_subscriptions' => (int) $activeSubscriptions->count(),
             'inactive_subscriptions' => $inactiveSubscriptionsCount,
             'expiring_soon' => (int) $expiringSoon->count(),
             'estimated_mrr' => $estimatedMrr,
-            'tenant_users' => User::whereNotNull('tenant_id')->count(),
+            'tenant_users' => $tenantUsersTotal,
             'super_admins' => User::whereNull('tenant_id')->count(),
             'orders' => Order::count(),
             'products' => Product::count(),
@@ -428,6 +484,181 @@ class SuperAdminController extends Controller
         return redirect()->route('super-admin.dashboard')->with('status', "Tenant '{$tenant->name}' unsuspended.");
     }
 
+    public function approveTenant(Tenant $tenant, TenantDatabaseProvisioner $databaseProvisioner): RedirectResponse
+    {
+        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
+
+        $settings = $tenant->settings ?? [];
+
+        $registrationStatus = strtolower(trim((string) data_get($settings, 'status.registration', 'approved')));
+        if ($registrationStatus !== 'pending' && $registrationStatus !== 'declined') {
+            return redirect()->route('super-admin.dashboard')->with('status', "Tenant '{$tenant->name}' is already approved.");
+        }
+
+        $ownerName = trim((string) data_get($settings, 'onboarding.owner.name', ''));
+        $ownerEmail = trim((string) data_get($settings, 'onboarding.owner.email', ''));
+        $ownerPasswordHash = (string) data_get($settings, 'onboarding.owner.password_hash', '');
+
+        if ($ownerName === '' || $ownerEmail === '' || $ownerPasswordHash === '') {
+            return redirect()->route('super-admin.dashboard')->withErrors([
+                'tenant_approval' => "Tenant '{$tenant->name}' is missing onboarding owner details.",
+            ]);
+        }
+
+        $databaseName = (string) data_get($settings, 'database.database', '');
+        if ($databaseName === '') {
+            $databaseName = $databaseProvisioner->generateDatabaseName($tenant->subdomain);
+            data_set($settings, 'database.host', config('tenancy.tenant_host'));
+            data_set($settings, 'database.port', config('tenancy.tenant_port'));
+            data_set($settings, 'database.database', $databaseName);
+            data_set($settings, 'database.username', config('tenancy.tenant_username'));
+            data_set($settings, 'database.password', config('tenancy.tenant_password'));
+        }
+
+        $databaseCreated = false;
+        $databaseExisted = (bool) DB::connection('central')
+            ->table('information_schema.SCHEMATA')
+            ->where('SCHEMA_NAME', $databaseName)
+            ->exists();
+
+        try {
+            $databaseProvisioner->createDatabase($databaseName);
+            $databaseCreated = true;
+
+            $tenant->update([
+                'settings' => $settings,
+            ]);
+
+            $databaseProvisioner->runTenantMigrations($tenant);
+
+            $this->configureTenantConnection($tenant);
+            $tenancy = app(Tenancy::class);
+            $tenancy->initialize($tenant);
+
+            try {
+                DB::connection('tenant')->transaction(function () use ($tenant, $ownerName, $ownerEmail, $ownerPasswordHash) {
+                    $user = User::on('tenant')->where('email', $ownerEmail)->first();
+
+                    if (! $user) {
+                        $user = User::on('tenant')->create([
+                            'tenant_id' => $tenant->id,
+                            'name' => $ownerName,
+                            'email' => $ownerEmail,
+                            'password' => $ownerPasswordHash,
+                        ]);
+                    }
+
+                    $ownerRole = $this->seedTenantRoles($tenant);
+                    $user->assignRole($ownerRole);
+
+                    app(PermissionRegistrar::class)->forgetCachedPermissions();
+                });
+            } finally {
+                $tenancy->end();
+            }
+        } catch (\Throwable $exception) {
+            if ($databaseCreated && ! $databaseExisted) {
+                $databaseProvisioner->dropDatabase($databaseName);
+            }
+
+            return redirect()->route('super-admin.dashboard')->withErrors([
+                'tenant_approval' => "Failed to approve tenant '{$tenant->name}': " . $exception->getMessage(),
+            ]);
+        }
+
+        data_set($settings, 'status.registration', 'approved');
+        data_set($settings, 'status.approved_at', now()->toIso8601String());
+        data_set($settings, 'status.approved_by', auth()->id());
+        data_forget($settings, 'status.declined_at');
+        data_forget($settings, 'status.declined_by');
+        data_forget($settings, 'status.decline_reason');
+        data_forget($settings, 'onboarding.owner.password_hash');
+
+        $tenant->update([
+            'settings' => $settings,
+        ]);
+
+        return redirect()->route('super-admin.dashboard')->with('status', "Tenant '{$tenant->name}' approved.");
+    }
+
+    public function declineTenant(Request $request, Tenant $tenant): RedirectResponse
+    {
+        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
+
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $settings = $tenant->settings ?? [];
+
+        data_set($settings, 'status.registration', 'declined');
+        data_set($settings, 'status.declined_at', now()->toIso8601String());
+        data_set($settings, 'status.declined_by', auth()->id());
+        data_forget($settings, 'status.approved_at');
+        data_forget($settings, 'status.approved_by');
+
+        $reason = trim((string) ($validated['reason'] ?? ''));
+        if ($reason !== '') {
+            data_set($settings, 'status.decline_reason', $reason);
+        } else {
+            data_forget($settings, 'status.decline_reason');
+        }
+
+        $tenant->update([
+            'settings' => $settings,
+        ]);
+
+        return redirect()->route('super-admin.dashboard')->with('status', "Tenant '{$tenant->name}' declined.");
+    }
+
+    protected function seedTenantRoles(Tenant $tenant): Role
+    {
+        $permissions = [
+            'use pos',
+            'create orders',
+            'process payments',
+            'manage brewing orders',
+            'view products',
+            'view brewing guides',
+            'manage products',
+            'view reports',
+            'manage users',
+            'delete users',
+        ];
+
+        $tenantPermissions = collect($permissions)
+            ->map(function (string $permissionName) {
+                return Permission::on('tenant')->firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'web',
+                ]);
+            });
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        $ownerRole = Role::on('tenant')->firstOrCreate([
+            'name' => 'Owner',
+            'guard_name' => 'web',
+            'tenant_id' => $tenant->id,
+        ]);
+        $ownerRole->syncPermissions($tenantPermissions);
+
+        $cashierRole = Role::on('tenant')->firstOrCreate([
+            'name' => 'Cashier',
+            'guard_name' => 'web',
+            'tenant_id' => $tenant->id,
+        ]);
+        $cashierRole->syncPermissions($tenantPermissions->whereIn('name', [
+            'use pos',
+            'create orders',
+            'process payments',
+            'view products',
+            'view brewing guides',
+        ]));
+
+        return $ownerRole;
+    }
+
     public function renewTenantSubscription(Request $request, Tenant $tenant): RedirectResponse
     {
         abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
@@ -533,5 +764,89 @@ class SuperAdminController extends Controller
         $supportTicket->save();
 
         return redirect()->route('super-admin.dashboard')->with('status', 'Support ticket updated.');
+    }
+
+    protected function configureTenantConnection(Tenant $tenant): bool
+    {
+        $database = data_get($tenant->settings, 'database');
+
+        if (! is_array($database) || empty($database['database'])) {
+            return false;
+        }
+
+        config([
+            'database.connections.tenant.host' => $database['host'] ?? config('database.connections.tenant.host'),
+            'database.connections.tenant.port' => $database['port'] ?? config('database.connections.tenant.port'),
+            'database.connections.tenant.database' => $database['database'],
+            'database.connections.tenant.username' => $database['username'] ?? config('database.connections.tenant.username'),
+            'database.connections.tenant.password' => $database['password'] ?? config('database.connections.tenant.password'),
+        ]);
+
+        DB::purge('tenant');
+        DB::reconnect('tenant');
+
+        return true;
+    }
+
+    protected function fetchTenantOwnerSummary(Tenant $tenant): array
+    {
+        if (! $this->configureTenantConnection($tenant)) {
+            return [
+                'name' => 'N/A',
+                'email' => 'N/A',
+                'users_count' => 0,
+            ];
+        }
+
+        try {
+            $usersQuery = DB::connection('tenant')->table('users');
+            if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
+                $usersQuery->where('tenant_id', (int) $tenant->id);
+            }
+
+            $usersCount = (int) $usersQuery->count();
+
+            $ownerQuery = DB::connection('tenant')
+                ->table('users')
+                ->join('model_has_roles', function ($join) {
+                    $join->on('model_has_roles.model_id', '=', 'users.id')
+                        ->where('model_has_roles.model_type', '=', User::class);
+                })
+                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->where('roles.name', 'Owner')
+                ->select('users.name', 'users.email')
+                ->orderBy('users.id');
+
+            if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
+                $ownerQuery->where('users.tenant_id', (int) $tenant->id);
+            }
+
+            $owner = $ownerQuery->first();
+
+            if (! $owner) {
+                $fallbackQuery = DB::connection('tenant')
+                    ->table('users')
+                    ->select('name', 'email')
+                    ->orderBy('id');
+
+                if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
+                    $fallbackQuery->where('tenant_id', (int) $tenant->id);
+                }
+
+                $owner = $fallbackQuery->first();
+            }
+
+            return [
+                'name' => is_string($owner?->name ?? null) && trim((string) $owner->name) !== '' ? (string) $owner->name : 'N/A',
+                'email' => is_string($owner?->email ?? null) && trim((string) $owner->email) !== '' ? (string) $owner->email : 'N/A',
+                'users_count' => $usersCount,
+            ];
+        } catch (\Throwable) {
+            return [
+                'name' => 'N/A',
+                'email' => 'N/A',
+                'users_count' => 0,
+            ];
+        }
     }
 }

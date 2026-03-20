@@ -9,6 +9,11 @@ class Role extends SpatieRole
 {
     protected $fillable = ['name', 'guard_name', 'tenant_id'];
 
+    public function getConnectionName()
+    {
+        return $this->connection ?? (tenant() ? 'tenant' : 'central');
+    }
+
     protected static function booted()
     {
         static::addGlobalScope('tenant', function (Builder $builder) {

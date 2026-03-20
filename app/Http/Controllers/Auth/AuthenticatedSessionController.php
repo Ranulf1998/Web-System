@@ -35,7 +35,12 @@ class AuthenticatedSessionController extends Controller
             $request->user()
         );
 
-        return redirect()->intended(route('dashboard', ['subdomain' => request()->route('subdomain')], absolute: false));
+        $subdomain = $request->route('subdomain')
+            ?? (app()->bound('tenant') ? app('tenant')->subdomain : null);
+
+        return $subdomain
+            ? redirect()->route('tenant.dashboard', ['subdomain' => $subdomain])
+            : redirect('/dashboard');
     }
 
     /**
@@ -59,7 +64,7 @@ class AuthenticatedSessionController extends Controller
             ?? (app()->bound('tenant') ? app('tenant')->subdomain : null);
 
         return $subdomain
-            ? redirect()->route('login', ['subdomain' => $subdomain])
+            ? redirect()->route('tenant.login', ['subdomain' => $subdomain])
             : redirect()->route('home');
     }
 }
