@@ -116,6 +116,19 @@ class SuperAdminController extends Controller
             return (int) DB::connection('central')->table($table)->count();
         };
 
+        $safeTenantMetricCount = static function (string $metric, callable $resolver): int {
+            try {
+                return (int) $resolver();
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to resolve tenant metric for super admin dashboard.', [
+                    'metric' => $metric,
+                    'error' => $exception->getMessage(),
+                ]);
+
+                return 0;
+            }
+        };
+
         $currentTenants = Tenant::query()
             ->latest()
             ->get(['id', 'name', 'subdomain', 'plan', 'lease_starts_at', 'lease_ends_at', 'settings', 'created_at']);
@@ -334,8 +347,8 @@ class SuperAdminController extends Controller
             'estimated_mrr' => $estimatedMrr,
             'tenant_users' => $tenantUsersTotal,
             'super_admins' => User::whereNull('tenant_id')->count(),
-            'orders' => Order::count(),
-            'products' => Product::count(),
+            'orders' => $safeTenantMetricCount('orders', static fn (): int => Order::count()),
+            'products' => $safeTenantMetricCount('products', static fn (): int => Product::count()),
             'sales_total' => $subscriptionSalesTotal,
             'total_database_bytes' => $totalDatabaseBytes,
             'failed_jobs' => $safeTableCount('failed_jobs'),

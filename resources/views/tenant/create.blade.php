@@ -1,6 +1,11 @@
 <x-guest-layout>
+    <div class="mb-6">
+        <h1 class="text-xl font-semibold text-slate-900">Register Your Shop</h1>
+        <p class="mt-1 text-sm text-slate-600">Create your BrewCloud workspace and choose your subscription plan.</p>
+    </div>
+
     @if ($errors->any())
-        <div class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+        <div class="mb-4 rounded-md border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
             <div class="font-semibold">Please fix the following:</div>
             <ul class="list-disc ml-5 mt-2">
                 @foreach ($errors->all() as $error)
@@ -27,7 +32,7 @@
     @endphp
 
     @if ($successMessage)
-        <div class="mb-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+        <div class="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
             <div class="font-semibold">{{ $successMessage }}</div>
             @if ($warningMessage)
                 <div class="mt-1">{{ $warningMessage }}</div>
@@ -41,37 +46,37 @@
         </div>
     @endif
 
-    <form id="tenant-registration-form" method="POST" action="{{ route('tenant.register') }}" data-stripe-session-url="{{ route('tenant.register.payment.session') }}">
+    <form id="tenant-registration-form" method="POST" action="{{ route('tenant.register') }}" data-stripe-session-url="{{ route('tenant.register.payment.session') }}" class="space-y-4">
         @csrf
 
         <!-- Shop Name -->
         <div>
-            <x-input-label for="shop_name" :value="__('Coffee Shop Name')" />
-            <x-text-input id="shop_name" class="block mt-1 w-full" type="text" name="shop_name" :value="old('shop_name')" required autofocus />
+            <x-input-label for="shop_name" :value="__('Coffee Shop Name')" class="text-slate-700" />
+            <x-text-input id="shop_name" class="block mt-1 w-full border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" type="text" name="shop_name" :value="old('shop_name')" required autofocus />
             <x-input-error :messages="$errors->get('shop_name')" class="mt-2" />
         </div>
 
         <!-- Shop Address -->
-        <div class="mt-4">
-            <x-input-label for="address" :value="__('Shop Address')" />
-            <x-text-input id="address" class="block mt-1 w-full" type="text" name="address" :value="old('address')" required />
+        <div>
+            <x-input-label for="address" :value="__('Shop Address')" class="text-slate-700" />
+            <x-text-input id="address" class="block mt-1 w-full border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" type="text" name="address" :value="old('address')" required />
             <x-input-error :messages="$errors->get('address')" class="mt-2" />
         </div>
 
         <!-- Subdomain -->
-        <div class="mt-4">
-            <x-input-label for="subdomain" :value="__('Subdomain')" />
+        <div>
+            <x-input-label for="subdomain" :value="__('Subdomain')" class="text-slate-700" />
             <div class="flex items-center">
-                <x-text-input id="subdomain" class="block mt-1 w-full" type="text" name="subdomain" :value="old('subdomain')" required placeholder="yourshop" />
-                <span class="ml-2 text-gray-600">.{{ config('app.domain') }}</span>
+                <x-text-input id="subdomain" class="block mt-1 w-full border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" type="text" name="subdomain" :value="old('subdomain')" required placeholder="yourshop" />
+                <span class="ml-2 text-slate-600">.{{ config('app.domain') }}</span>
             </div>
             <x-input-error :messages="$errors->get('subdomain')" class="mt-2" />
         </div>
 
         <!-- Plan -->
-        <div class="mt-6">
-            <x-input-label for="plan" :value="__('Choose a Plan')" />
-            <select id="plan" name="plan" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full">
+        <div class="pt-2">
+            <x-input-label for="plan" :value="__('Choose a Plan')" class="text-slate-700" />
+            <select id="plan" name="plan" class="border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)] rounded-md shadow-sm block mt-1 w-full">
                 @foreach ($plans as $planKey => $planConfig)
                     <option
                         value="{{ $planKey }}"
@@ -83,33 +88,33 @@
                 @endforeach
             </select>
 
-            <div id="plan-details" class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+            <div id="plan-details" class="mt-2 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
                 <div id="plan-details-title" class="font-semibold">Plan details</div>
-                <div id="plan-details-text" class="mt-1 text-gray-600">Select a plan to view details.</div>
+                <div id="plan-details-text" class="mt-1 text-slate-600">Select a plan to view details.</div>
             </div>
 
             <x-input-error :messages="$errors->get('plan')" class="mt-2" />
         </div>
 
         <!-- Payment Method -->
-        <div class="mt-6">
-            <x-input-label :value="__('Payment Method')" />
+        <div class="pt-2">
+            <x-input-label :value="__('Payment Method')" class="text-slate-700" />
             <div class="mt-3 space-y-3">
-                <label class="block border rounded-lg p-4 cursor-pointer">
+                <label class="block border border-slate-200 rounded-lg p-4 cursor-pointer bg-white hover:bg-slate-50">
                     <div class="flex items-center justify-between gap-4">
                         <div>
-                            <div class="font-semibold">Gcash</div>
+                            <div class="font-semibold text-slate-800">Gcash</div>
                         </div>
-                        <input type="radio" name="payment_method" value="gcash" {{ old('payment_method', 'gcash') === 'gcash' ? 'checked' : '' }}>
+                        <input type="radio" name="payment_method" value="gcash" class="text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" {{ old('payment_method', 'gcash') === 'gcash' ? 'checked' : '' }}>
                     </div>
                 </label>
 
-                <label class="block border rounded-lg p-4 cursor-pointer">
+                <label class="block border border-slate-200 rounded-lg p-4 cursor-pointer bg-white hover:bg-slate-50">
                     <div class="flex items-center justify-between gap-4">
                         <div>
-                            <div class="font-semibold">Bank (Card)</div>
+                            <div class="font-semibold text-slate-800">Bank (Card)</div>
                         </div>
-                        <input type="radio" name="payment_method" value="stripe" {{ old('payment_method') === 'stripe' ? 'checked' : '' }}>
+                        <input type="radio" name="payment_method" value="stripe" class="text-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" {{ old('payment_method') === 'stripe' ? 'checked' : '' }}>
                     </div>
                 </label>
             </div>
@@ -117,9 +122,9 @@
         </div>
 
         <!-- Subscription Months -->
-        <div class="mt-4">
-            <x-input-label for="subscription_months" :value="__('Number of Months')" />
-            <select id="subscription_months" name="subscription_months" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm block mt-1 w-full">
+        <div>
+            <x-input-label for="subscription_months" :value="__('Number of Months')" class="text-slate-700" />
+            <select id="subscription_months" name="subscription_months" class="border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)] rounded-md shadow-sm block mt-1 w-full">
                 @for ($month = 1; $month <= 24; $month++)
                     <option value="{{ $month }}" {{ $defaultMonths === $month ? 'selected' : '' }}>{{ $month }} {{ $month === 1 ? 'month' : 'months' }}</option>
                 @endfor
@@ -127,34 +132,34 @@
             <x-input-error :messages="$errors->get('subscription_months')" class="mt-2" />
         </div>
 
-        <div class="mt-4 rounded-md border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+        <div class="rounded-md border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
             <div><span class="font-semibold">Monthly Price:</span> <span id="monthly-price">₱0</span></div>
             <div class="mt-1"><span class="font-semibold">Total Due:</span> <span id="total-price">₱0</span></div>
         </div>
 
         <!-- Owner Name -->
-        <div class="mt-4">
-            <x-input-label for="name" :value="__('Your Name')" />
-            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required />
+        <div>
+            <x-input-label for="name" :value="__('Your Name')" class="text-slate-700" />
+            <x-text-input id="name" class="block mt-1 w-full border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" type="text" name="name" :value="old('name')" required />
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
         <!-- Email -->
-        <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required />
+        <div>
+            <x-input-label for="email" :value="__('Email')" class="text-slate-700" />
+            <x-text-input id="email" class="block mt-1 w-full border-slate-300 focus:border-[color:var(--brand-primary)] focus:ring-[color:var(--brand-primary)]" type="email" name="email" :value="old('email')" required />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
-        <div class="mt-4">
-            <label for="terms" class="inline-flex items-center gap-2 text-sm text-gray-700">
-                <input id="terms" type="checkbox" name="terms" value="1" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" {{ old('terms') ? 'checked' : '' }} required>
+        <div>
+            <label for="terms" class="inline-flex items-center gap-2 text-sm text-slate-700">
+                <input id="terms" type="checkbox" name="terms" value="1" class="rounded border-slate-300 text-[color:var(--brand-primary)] shadow-sm focus:ring-[color:var(--brand-primary)]" {{ old('terms') ? 'checked' : '' }} required>
                 <span>I agree to the Terms of Service (ToS).</span>
             </label>
             <x-input-error :messages="$errors->get('terms')" class="mt-2" />
         </div>
 
-        <div class="flex items-center justify-end mt-4">
+        <div class="flex items-center justify-end pt-2">
             <div id="stripe-modal-error" class="mr-4 hidden rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"></div>
             <x-primary-button id="register-shop-submit" class="ml-4">
                 {{ __('Register Shop') }}
@@ -163,10 +168,10 @@
     </form>
 
     <div id="stripe-checkout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 p-4">
-        <div class="w-full max-w-3xl rounded-xl bg-white p-4 shadow-xl">
+        <div class="w-full max-w-3xl rounded-xl bg-white p-4 shadow-xl border border-slate-200">
             <div class="mb-3 flex items-center justify-between">
-                <div class="text-sm font-semibold text-gray-700">Complete Stripe Payment</div>
-                <button id="stripe-modal-close" type="button" class="rounded-md px-2 py-1 text-sm text-gray-500 hover:bg-gray-100">Close</button>
+                <div class="text-sm font-semibold text-slate-700">Complete Stripe Payment</div>
+                <button id="stripe-modal-close" type="button" class="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">Close</button>
             </div>
             <div id="stripe-checkout-container" class="max-h-[80vh] overflow-auto"></div>
         </div>

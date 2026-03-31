@@ -21,9 +21,12 @@
         $brandAccent = $branding['accent'] ?? '#f59e0b';
         $brandBackground = $branding['background'] ?? '#f3f4f6';
         $logoPath = $branding['logo_path'] ?? null;
+        $isTenantRegistration = request()->routeIs('tenant.register*');
+        $isSubdomainLogin = request()->routeIs('tenant.login');
+        $guestCardWidthClass = $isTenantRegistration ? 'sm:max-w-2xl' : 'sm:max-w-md';
     @endphp
     <body class="font-sans text-gray-900 antialiased" style="--brand-primary: {{ $brandPrimary }}; --brand-accent: {{ $brandAccent }}; --brand-background: {{ $brandBackground }};">
-        <div class="min-h-screen flex flex-col sm:justify-center items-center pt-6 sm:pt-0 brand-background">
+        <div class="min-h-screen flex flex-col sm:justify-center items-center px-4 py-8 sm:py-10 brand-background">
             <div class="flex flex-col items-center">
                 @if ($logoPath && $tenant)
                     <img src="{{ route('tenant.files.show', ['path' => $logoPath]) }}" alt="Tenant logo" class="h-20 w-20 object-contain" />
@@ -32,13 +35,17 @@
                         <x-application-logo class="w-20 h-20 fill-current text-[color:var(--brand-primary)]" />
                     </a>
                 @endif
+                @unless ($isSubdomainLogin)
+                    <div class="mt-3 text-sm font-semibold text-slate-700">BrewCloud</div>
+                    <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Coffee SaaS Platform</div>
+                @endunless
                 @if ($tenant)
                     <div class="mt-3 text-sm font-semibold text-slate-700">{{ $tenant->name }}</div>
                     <div class="text-xs uppercase tracking-[0.2em] text-slate-400">Coffee shop</div>
                 @endif
             </div>
 
-            <div class="w-full sm:max-w-md mt-6 px-6 py-4 bg-white shadow-md overflow-hidden sm:rounded-lg">
+            <div class="w-full {{ $guestCardWidthClass }} mt-6 border border-slate-200 bg-white/95 px-6 py-5 shadow-xl overflow-hidden sm:rounded-2xl">
                 {{ $slot }}
             </div>
         </div>

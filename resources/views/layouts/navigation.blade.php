@@ -1,4 +1,4 @@
-<nav x-data="{ open: false, notificationsOpen: false }" class="bg-white border-b border-gray-100">
+<nav x-data="{ open: false, notificationsOpen: false }" class="sticky top-0 z-50 bg-white border-b border-gray-100">
     @php
         $roleNames = auth()->user()?->roles?->pluck('name')->all() ?? [];
         $permissionNames = auth()->user()?->getAllPermissions()?->pluck('name')->all() ?? [];

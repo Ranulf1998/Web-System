@@ -91,6 +91,8 @@ Route::domain('{subdomain}.' . config('app.domain'))
         Route::middleware('auth')->group(function () {
             // Dashboard
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('tenant.dashboard');
+            Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])->name('tenant.dashboard.layout.update');
+            Route::post('/dashboard/layout/reset', [DashboardController::class, 'resetLayout'])->name('tenant.dashboard.layout.reset');
 
             Route::post('logout', [App\Http\Controllers\Auth\AuthenticatedSessionController::class, 'destroy'])
                 ->name('tenant.logout');

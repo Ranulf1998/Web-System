@@ -10,7 +10,7 @@
     @endif
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900">
-    <header class="border-b border-slate-200 bg-white">
+    <header class="sticky top-0 z-40 border-b border-slate-200 bg-white">
         <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
             <div>
                 <p class="text-xs uppercase tracking-[0.25em] text-indigo-600">BrewCloud Owner</p>
@@ -25,24 +25,23 @@
         </div>
     </header>
 
+    @php
+        $superAdminAlertType = null;
+        $superAdminAlertMessage = null;
+
+        if (session('status')) {
+            $superAdminAlertType = 'success';
+            $superAdminAlertMessage = session('status');
+        } elseif ($errors->has('central_admin')) {
+            $superAdminAlertType = 'error';
+            $superAdminAlertMessage = $errors->first('central_admin');
+        } elseif ($errors->has('tenant_approval')) {
+            $superAdminAlertType = 'error';
+            $superAdminAlertMessage = $errors->first('tenant_approval');
+        }
+    @endphp
+
     <main class="mx-auto w-full max-w-7xl space-y-8 px-6 py-8">
-        @if (session('status'))
-            <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {{ session('status') }}
-            </div>
-        @endif
-
-        @if ($errors->has('central_admin'))
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {{ $errors->first('central_admin') }}
-            </div>
-        @endif
-
-        @if ($errors->has('tenant_approval'))
-            <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-                {{ $errors->first('tenant_approval') }}
-            </div>
-        @endif
 
         <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div class="rounded-xl border border-slate-200 bg-white p-5">
@@ -190,14 +189,26 @@
                                 </td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
                                     <div class="flex items-center gap-2">
-                                        <form method="POST" action="{{ route('super-admin.tenants.approve', $tenant) }}" onsubmit="return confirm('Approve this tenant registration?');">
-                                            @csrf
-                                            <button type="submit" class="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50">Approve</button>
-                                        </form>
-                                        <form method="POST" action="{{ route('super-admin.tenants.decline', $tenant) }}" onsubmit="return confirm('Decline this tenant registration?');">
-                                            @csrf
-                                            <button type="submit" class="rounded-md border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50">Decline</button>
-                                        </form>
+                                        <button
+                                            type="button"
+                                            data-open-registration-action-modal
+                                            data-registration-action-type="approve"
+                                            data-registration-action-url="{{ route('super-admin.tenants.approve', $tenant) }}"
+                                            data-registration-tenant-name="{{ $tenant->name }}"
+                                            class="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50"
+                                        >
+                                            Approve
+                                        </button>
+                                        <button
+                                            type="button"
+                                            data-open-registration-action-modal
+                                            data-registration-action-type="decline"
+                                            data-registration-action-url="{{ route('super-admin.tenants.decline', $tenant) }}"
+                                            data-registration-tenant-name="{{ $tenant->name }}"
+                                            class="rounded-md border border-amber-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50"
+                                        >
+                                            Decline
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -349,6 +360,51 @@
             </div>
         </div>
     </dialog>
+
+    <dialog id="registration-action-confirm-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <div class="rounded-xl bg-white p-6">
+            <h3 class="text-base font-semibold text-slate-900" data-registration-modal-title>Confirm Action</h3>
+            <p class="mt-2 text-sm text-slate-600" data-registration-modal-message>Are you sure you want to continue?</p>
+
+            <div class="mt-4 hidden" data-registration-modal-reason-wrap>
+                <label for="registration-modal-reason" class="text-sm font-medium text-slate-700">Decline reason <span class="text-rose-600">*</span></label>
+                <textarea
+                    id="registration-modal-reason"
+                    name="reason"
+                    rows="3"
+                    maxlength="255"
+                    disabled
+                    class="mt-1 w-full rounded-md border border-slate-300 text-sm text-slate-700 shadow-sm focus:border-amber-500 focus:ring-amber-500"
+                    placeholder="Enter the reason for declining this registration"
+                ></textarea>
+            </div>
+
+            <div class="mt-5 flex items-center justify-end gap-2">
+                <button type="button" data-registration-modal-cancel class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+                <form method="POST" data-registration-modal-form>
+                    @csrf
+                    <button type="submit" data-registration-modal-confirm class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Confirm</button>
+                </form>
+            </div>
+        </div>
+    </dialog>
+
+    @if ($superAdminAlertMessage)
+        <dialog id="super-admin-message-alert-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+            <div class="rounded-xl bg-white p-6">
+                <h3 class="text-base font-semibold text-slate-900">
+                    {{ $superAdminAlertType === 'success' ? 'Success' : 'Alert' }}
+                </h3>
+                <p class="mt-2 text-sm {{ $superAdminAlertType === 'success' ? 'text-emerald-700' : 'text-rose-700' }}">
+                    {{ $superAdminAlertMessage }}
+                </p>
+
+                <div class="mt-5 flex items-center justify-end">
+                    <button type="button" data-super-admin-message-alert-close class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">OK</button>
+                </div>
+            </div>
+        </dialog>
+    @endif
 
     <dialog id="tenant-domains-modal" class="w-full max-w-2xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
         <div class="rounded-xl bg-white p-6">
@@ -1232,6 +1288,104 @@
             const superAdminLogoutOpenButton = document.querySelector('[data-open-super-admin-logout-modal]');
             const superAdminLogoutCancelButton = document.querySelector('[data-super-admin-logout-cancel]');
             const superAdminLogoutConfirmButton = document.querySelector('[data-super-admin-logout-confirm]');
+            const superAdminMessageAlertModal = document.getElementById('super-admin-message-alert-modal');
+            const superAdminMessageAlertCloseButton = document.querySelector('[data-super-admin-message-alert-close]');
+            const registrationActionModal = document.getElementById('registration-action-confirm-modal');
+            const registrationActionOpenButtons = document.querySelectorAll('[data-open-registration-action-modal]');
+            const registrationActionModalTitle = document.querySelector('[data-registration-modal-title]');
+            const registrationActionModalMessage = document.querySelector('[data-registration-modal-message]');
+            const registrationActionModalCancel = document.querySelector('[data-registration-modal-cancel]');
+            const registrationActionModalForm = document.querySelector('[data-registration-modal-form]');
+            const registrationActionModalConfirm = document.querySelector('[data-registration-modal-confirm]');
+            const registrationActionModalReasonWrap = document.querySelector('[data-registration-modal-reason-wrap]');
+            const registrationActionModalReasonField = document.getElementById('registration-modal-reason');
+
+            if (registrationActionModal && registrationActionOpenButtons.length && registrationActionModalTitle && registrationActionModalMessage && registrationActionModalCancel && registrationActionModalForm && registrationActionModalConfirm && registrationActionModalReasonWrap && registrationActionModalReasonField) {
+                const resetRegistrationActionModal = () => {
+                    registrationActionModalReasonWrap.classList.add('hidden');
+                    registrationActionModalReasonField.required = false;
+                    registrationActionModalReasonField.disabled = true;
+                    registrationActionModalReasonField.value = '';
+                };
+
+                registrationActionOpenButtons.forEach((button) => {
+                    button.addEventListener('click', function () {
+                        const actionType = button.getAttribute('data-registration-action-type');
+                        const actionUrl = button.getAttribute('data-registration-action-url');
+                        const tenantName = button.getAttribute('data-registration-tenant-name') || 'this tenant';
+
+                        if (!actionUrl) {
+                            return;
+                        }
+
+                        const isApprove = actionType === 'approve';
+
+                        registrationActionModalTitle.textContent = isApprove ? 'Approve Registration' : 'Decline Registration';
+                        registrationActionModalMessage.textContent = isApprove
+                            ? `Approve registration for ${tenantName}?`
+                            : `Decline registration for ${tenantName}?`;
+                        registrationActionModalForm.action = actionUrl;
+                        registrationActionModalConfirm.textContent = isApprove ? 'Approve' : 'Decline';
+                        registrationActionModalConfirm.classList.toggle('bg-emerald-600', isApprove);
+                        registrationActionModalConfirm.classList.toggle('hover:bg-emerald-500', isApprove);
+                        registrationActionModalConfirm.classList.toggle('bg-amber-600', !isApprove);
+                        registrationActionModalConfirm.classList.toggle('hover:bg-amber-500', !isApprove);
+                        registrationActionModalConfirm.classList.remove('bg-indigo-600', 'hover:bg-indigo-500');
+
+                        registrationActionModalReasonWrap.classList.toggle('hidden', isApprove);
+                        registrationActionModalReasonField.required = !isApprove;
+                        registrationActionModalReasonField.disabled = isApprove;
+
+                        if (isApprove) {
+                            registrationActionModalReasonField.value = '';
+                        }
+
+                        registrationActionModal.showModal();
+
+                        if (!isApprove) {
+                            setTimeout(function () {
+                                registrationActionModalReasonField.focus();
+                            }, 50);
+                        }
+                    });
+                });
+
+                registrationActionModalCancel.addEventListener('click', function () {
+                    resetRegistrationActionModal();
+                    registrationActionModal.close();
+                });
+
+                registrationActionModal.addEventListener('click', function (event) {
+                    const rect = registrationActionModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+
+                    if (!inDialog) {
+                        resetRegistrationActionModal();
+                        registrationActionModal.close();
+                    }
+                });
+
+                registrationActionModal.addEventListener('close', function () {
+                    resetRegistrationActionModal();
+                });
+            }
+
+            if (superAdminMessageAlertModal && superAdminMessageAlertCloseButton) {
+                superAdminMessageAlertModal.showModal();
+
+                superAdminMessageAlertCloseButton.addEventListener('click', function () {
+                    superAdminMessageAlertModal.close();
+                });
+
+                superAdminMessageAlertModal.addEventListener('click', function (event) {
+                    const rect = superAdminMessageAlertModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+
+                    if (!inDialog) {
+                        superAdminMessageAlertModal.close();
+                    }
+                });
+            }
 
             if (superAdminLogoutModal && superAdminLogoutForm && superAdminLogoutOpenButton && superAdminLogoutCancelButton && superAdminLogoutConfirmButton) {
                 superAdminLogoutOpenButton.addEventListener('click', function () {
