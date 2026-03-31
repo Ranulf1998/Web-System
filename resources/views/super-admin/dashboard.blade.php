@@ -325,12 +325,12 @@
                                         </button>
 
                                         @if ($tenant->display_is_suspended)
-                                            <form method="POST" action="{{ route('super-admin.tenants.unsuspend', $tenant) }}" onsubmit="return confirm('Unsuspend this tenant?');">
+                                            <form method="POST" action="{{ route('super-admin.tenants.unsuspend', $tenant) }}" class="tenant-unsuspend-single" data-tenant-name="{{ $tenant->name }}">
                                                 @csrf
                                                 <button type="submit" class="rounded-md border border-emerald-300 px-2 py-1 text-xs text-emerald-700 hover:bg-emerald-50">Unsuspend</button>
                                             </form>
                                         @else
-                                            <form method="POST" action="{{ route('super-admin.tenants.suspend', $tenant) }}" onsubmit="return confirm('Suspend this tenant?');">
+                                            <form method="POST" action="{{ route('super-admin.tenants.suspend', $tenant) }}" class="tenant-suspend-single" data-tenant-name="{{ $tenant->name }}">
                                                 @csrf
                                                 <button type="submit" class="rounded-md border border-rose-300 px-2 py-1 text-xs text-rose-700 hover:bg-rose-50">Suspend</button>
                                             </form>
@@ -405,6 +405,34 @@
             </div>
         </dialog>
     @endif
+
+    <!-- Suspend Confirmation Modal -->
+    <dialog id="suspend-confirmation-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <div class="rounded-xl bg-white p-6">
+            <h3 class="text-base font-semibold text-rose-700">Confirm Suspension</h3>
+            <p class="mt-3 text-sm text-slate-700">
+                Are you sure you want to suspend <span id="suspend-tenant-name" class="font-semibold"></span>? This will prevent access to the shop.
+            </p>
+            <div class="mt-5 flex items-center justify-end gap-3">
+                <button type="button" id="suspend-cancel-btn" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" id="suspend-confirm-btn" class="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-500">Suspend</button>
+            </div>
+        </div>
+    </dialog>
+
+    <!-- Unsuspend Confirmation Modal -->
+    <dialog id="unsuspend-confirmation-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <div class="rounded-xl bg-white p-6">
+            <h3 class="text-base font-semibold text-emerald-700">Confirm Reactivation</h3>
+            <p class="mt-3 text-sm text-slate-700">
+                Are you sure you want to unsuspend <span id="unsuspend-tenant-name" class="font-semibold"></span>? This will restore access to the shop.
+            </p>
+            <div class="mt-5 flex items-center justify-end gap-3">
+                <button type="button" id="unsuspend-cancel-btn" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" id="unsuspend-confirm-btn" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500">Unsuspend</button>
+            </div>
+        </div>
+    </dialog>
 
     <dialog id="tenant-domains-modal" class="w-full max-w-2xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
         <div class="rounded-xl bg-white p-6">
@@ -1430,6 +1458,120 @@
                     modal.close();
                 }
             });
+        })();
+
+        // Suspend/Unsuspend confirmation modals
+        (function () {
+            const suspendModal = document.getElementById('suspend-confirmation-modal');
+            const unsuspendModal = document.getElementById('unsuspend-confirmation-modal');
+            const suspendCancelBtn = document.getElementById('suspend-cancel-btn');
+            const suspendConfirmBtn = document.getElementById('suspend-confirm-btn');
+            const unsuspendCancelBtn = document.getElementById('unsuspend-cancel-btn');
+            const unsuspendConfirmBtn = document.getElementById('unsuspend-confirm-btn');
+            const suspendTenantName = document.getElementById('suspend-tenant-name');
+            const unsuspendTenantName = document.getElementById('unsuspend-tenant-name');
+
+            let pendingForm = null;
+
+            // Handle suspend form submissions
+            document.querySelectorAll('.tenant-suspend-single').forEach(form => {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const tenantName = this.getAttribute('data-tenant-name');
+                    pendingForm = this;
+                    if (suspendTenantName) suspendTenantName.textContent = tenantName;
+                    if (suspendModal) suspendModal.showModal();
+                });
+            });
+
+            // Handle unsuspend form submissions
+            document.querySelectorAll('.tenant-unsuspend-single').forEach(form => {
+                form.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    const tenantName = this.getAttribute('data-tenant-name');
+                    pendingForm = this;
+                    if (unsuspendTenantName) unsuspendTenantName.textContent = tenantName;
+                    if (unsuspendModal) unsuspendModal.showModal();
+                });
+            });
+
+            // Handle bulk suspend form
+            const tenantSuspendForm = document.querySelector('[data-tenant-suspend-form]');
+            if (tenantSuspendForm) {
+                tenantSuspendForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    pendingForm = this;
+                    if (suspendTenantName) suspendTenantName.textContent = 'the selected tenant';
+                    if (suspendModal) suspendModal.showModal();
+                });
+            }
+
+            // Handle bulk unsuspend form
+            const tenantUnsuspendForm = document.querySelector('[data-tenant-unsuspend-form]');
+            if (tenantUnsuspendForm) {
+                tenantUnsuspendForm.addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    pendingForm = this;
+                    if (unsuspendTenantName) unsuspendTenantName.textContent = 'the selected tenant';
+                    if (unsuspendModal) unsuspendModal.showModal();
+                });
+            }
+
+            // Suspend modal handlers
+            if (suspendCancelBtn) {
+                suspendCancelBtn.addEventListener('click', function () {
+                    if (suspendModal) suspendModal.close();
+                    pendingForm = null;
+                });
+            }
+
+            if (suspendConfirmBtn) {
+                suspendConfirmBtn.addEventListener('click', function () {
+                    if (pendingForm) {
+                        pendingForm.submit();
+                    }
+                    if (suspendModal) suspendModal.close();
+                });
+            }
+
+            if (suspendModal) {
+                suspendModal.addEventListener('click', function (event) {
+                    const rect = suspendModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+                    if (!inDialog) {
+                        suspendModal.close();
+                        pendingForm = null;
+                    }
+                });
+            }
+
+            // Unsuspend modal handlers
+            if (unsuspendCancelBtn) {
+                unsuspendCancelBtn.addEventListener('click', function () {
+                    if (unsuspendModal) unsuspendModal.close();
+                    pendingForm = null;
+                });
+            }
+
+            if (unsuspendConfirmBtn) {
+                unsuspendConfirmBtn.addEventListener('click', function () {
+                    if (pendingForm) {
+                        pendingForm.submit();
+                    }
+                    if (unsuspendModal) unsuspendModal.close();
+                });
+            }
+
+            if (unsuspendModal) {
+                unsuspendModal.addEventListener('click', function (event) {
+                    const rect = unsuspendModal.getBoundingClientRect();
+                    const inDialog = rect.top <= event.clientY && event.clientY <= rect.top + rect.height && rect.left <= event.clientX && event.clientX <= rect.left + rect.width;
+                    if (!inDialog) {
+                        unsuspendModal.close();
+                        pendingForm = null;
+                    }
+                });
+            }
         })();
     </script>
 </body>
