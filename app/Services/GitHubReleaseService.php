@@ -5,6 +5,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GitHubReleaseService
 {
@@ -26,14 +27,29 @@ class GitHubReleaseService
             "github_latest_release_{$repo}",
             now()->addMinutes((int) config('version.cache_minutes', 15)),
             function () use ($repo, $current) {
-                $request = Http::acceptJson()->timeout(10);
+                $verify = (bool) config('version.verify_ssl', app()->isProduction());
+                $request = Http::acceptJson()->timeout(10)->withOptions(['verify' => $verify]);
 
                 $token = trim((string) config('version.github_token'));
                 if ($token !== '') {
                     $request = $request->withToken($token);
                 }
 
-                $response = $request->get("https://api.github.com/repos/{$repo}/releases/latest");
+                try {
+                    $response = $request->get("https://api.github.com/repos/{$repo}/releases/latest");
+                } catch (\Throwable $exception) {
+                    Log::warning('Unable to fetch latest GitHub release.', [
+                        'repo' => $repo,
+                        'error' => $exception->getMessage(),
+                    ]);
+
+                    return [
+                        'current_version' => $current,
+                        'latest_version' => null,
+                        'latest_url' => null,
+                        'update_available' => false,
+                    ];
+                }
 
                 if (! $response->successful()) {
                     return [
