@@ -23,6 +23,7 @@
             initialLayout: @js($dashboardLayout),
             widgets: @js($availableWidgets),
             customSections: @js($customSections),
+            initialNavigationPosition: @js($navigationPosition),
             saveUrl: '{{ route('tenant.dashboard.layout.update') }}',
             resetUrl: '{{ route('tenant.dashboard.layout.reset') }}',
             canCustomize: @js($canCustomizeDashboard),
@@ -50,6 +51,14 @@
             ];
             $planFeatures = $plan['features'] ?? [];
             $planName = $plan['name'] ?? ucfirst($planKey);
+            $planBandwidthLabels = [
+                'basic' => '10 GB/month',
+                'starter' => '10 GB/month',
+                'standard' => '20 GB/month',
+                'business' => 'Unlimited',
+            ];
+            $planBandwidthLabel = $planBandwidthLabels[$planKey] ?? null;
+            $planNameWithBandwidth = $planBandwidthLabel ? $planName . ' (' . $planBandwidthLabel . ')' : $planName;
             $planPrice = $plan['price'] ?? null;
             $maxUsers = $plan['max_users'] ?? null;
 
@@ -66,6 +75,7 @@
             $bottomWidgets = $dashboardLayout['bottom'] ?? [];
             $orderedWidgets = array_values(array_unique(array_merge($topWidgets, $bottomWidgets)));
             $customSectionMap = collect($customSections ?? [])->keyBy('id')->all();
+            $navigationPosition = $navigationPosition ?? 'top';
         @endphp
 
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
@@ -112,6 +122,23 @@
                     </div>
 
                     <div class="max-w-4xl mx-auto rounded-xl border border-slate-200 bg-white p-4">
+                        <div class="dashboard-section-title">Dashboard Settings</div>
+                        <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div class="rounded-lg border border-slate-200 p-3">
+                                <label class="dashboard-section-title" for="navigation_position">Navigation Position</label>
+                                <select
+                                    id="navigation_position"
+                                    class="mt-2 w-full rounded-md border-slate-300 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                    x-model="navigationPosition"
+                                >
+                                    <option value="top">Top</option>
+                                    <option value="left">Left</option>
+                                    <option value="right">Right</option>
+                                </select>
+                                <p class="mt-2 text-xs text-slate-500">Choose where tenant navigation appears on desktop.</p>
+                            </div>
+                        </div>
+
                         <div class="dashboard-section-title">Widget Palette</div>
                         <div class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
                             <template x-for="(meta, widgetId) in widgets" :key="widgetId">
@@ -259,7 +286,7 @@
                     @if ($widget === 'plan_summary' && $isOwner)
                         <div class="dashboard-panel overflow-hidden p-6">
                             <div class="dashboard-section-title">Plan Summary</div>
-                            <div class="mt-2 text-slate-700">Current plan: {{ $planName }}</div>
+                            <div class="mt-2 text-slate-700">Current plan: {{ $planNameWithBandwidth }}</div>
                             @if ($planPrice)
                                 <div class="text-sm text-slate-500">₱{{ number_format($planPrice) }} / month</div>
                             @endif
@@ -297,7 +324,7 @@
             <div class="modal-card" @click.stop>
                 <div class="dashboard-header">
                     <div>
-                        <div class="modal-title">Current Plan: {{ $planName }}</div>
+                        <div class="modal-title">Current Plan: {{ $planNameWithBandwidth }}</div>
                         @if ($planPrice)
                             <div class="dashboard-subtitle">₱{{ number_format($planPrice) }} / month</div>
                         @endif
@@ -323,7 +350,7 @@
         </div>
 
         <script>
-            function dashboardPage({ initialLayout, widgets, customSections, saveUrl, resetUrl, canCustomize }) {
+            function dashboardPage({ initialLayout, initialNavigationPosition, widgets, customSections, saveUrl, resetUrl, canCustomize }) {
                 const clone = (value) => JSON.parse(JSON.stringify(value));
 
                 return {
@@ -339,6 +366,7 @@
                     dragContext: null,
                     layout: clone(initialLayout),
                     defaultLayout: clone(initialLayout),
+                    navigationPosition: ['top', 'left', 'right'].includes(initialNavigationPosition) ? initialNavigationPosition : 'top',
                     customSections: Array.isArray(customSections) ? clone(customSections) : [],
                     newCustomSection: { title: '', content: '' },
                     isUsed(widgetId) {
@@ -485,6 +513,7 @@
 
                             this.layout = clone(payload.layout || this.defaultLayout);
                             this.customSections = Array.isArray(payload.custom_sections) ? clone(payload.custom_sections) : [];
+                            this.navigationPosition = ['top', 'left', 'right'].includes(payload.navigation_position) ? payload.navigation_position : this.navigationPosition;
                             this.defaultLayout = clone(this.layout);
                             this.saveMessage = payload.message || 'Dashboard layout reset to default.';
 
@@ -519,6 +548,7 @@
                                 body: JSON.stringify({
                                     layout: this.layout,
                                     custom_sections: this.customSections,
+                                    navigation_position: this.navigationPosition,
                                 }),
                             });
 
@@ -530,6 +560,7 @@
 
                             this.layout = clone(payload.layout || this.layout);
                             this.customSections = Array.isArray(payload.custom_sections) ? clone(payload.custom_sections) : this.customSections;
+                            this.navigationPosition = ['top', 'left', 'right'].includes(payload.navigation_position) ? payload.navigation_position : this.navigationPosition;
                             this.defaultLayout = clone(this.layout);
                             this.saveMessage = payload.message || 'Dashboard layout saved.';
 

@@ -26,6 +26,7 @@ use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 use Spatie\Permission\PermissionRegistrar;
 use Stancl\Tenancy\Tenancy;
+use App\Services\GitHubReleaseService;
 
 class SuperAdminController extends Controller
 {
@@ -104,7 +105,7 @@ class SuperAdminController extends Controller
         return redirect()->intended(route('super-admin.dashboard'));
     }
 
-    public function dashboard(): View
+    public function dashboard(GitHubReleaseService $releaseService): View
     {
         abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
 
@@ -161,6 +162,8 @@ class SuperAdminController extends Controller
             $databaseBytes = is_string($databaseName)
                 ? ($databaseUsageByName[$databaseName] ?? null)
                 : null;
+            $bandwidthBytes = $this->resolveBandwidthUsageBytes($tenant);
+            $bandwidthUsage = $this->resolveBandwidthUsage($tenant);
             $registrationStatus = strtolower(trim((string) data_get($tenant->settings, 'status.registration', 'approved')));
             $subscribedMonths = (int) data_get($tenant->settings, 'subscription.months', 0);
             $leaseStart = $tenant->lease_starts_at ?? $tenant->created_at;
@@ -218,6 +221,8 @@ class SuperAdminController extends Controller
             $tenant->setAttribute('display_users_count', (int) ($ownerSummary['users_count'] ?? 0));
             $tenant->setAttribute('display_payment_method', (string) data_get($tenant->settings, 'subscription.payment_method', 'N/A'));
             $tenant->setAttribute('display_monthly_price', (float) data_get($tenant->settings, 'subscription.monthly_price', (float) config('plans.' . $tenant->planKey() . '.price', 0)));
+            $tenant->setAttribute('display_bandwidth_bytes', $bandwidthBytes);
+            $tenant->setAttribute('display_bandwidth_usage', $bandwidthUsage);
             $tenant->setAttribute('display_renewal_history', array_values(array_filter(
                 is_array(data_get($tenant->settings, 'subscription.renewal_history', []))
                     ? data_get($tenant->settings, 'subscription.renewal_history', [])
@@ -336,6 +341,10 @@ class SuperAdminController extends Controller
             return (int) ($tenant->display_users_count ?? 0);
         });
 
+        $totalBandwidthBytes = (int) $currentTenants->sum(function (Tenant $tenant) {
+            return is_int($tenant->display_bandwidth_bytes) ? $tenant->display_bandwidth_bytes : 0;
+        });
+
         $stats = [
             'tenants' => (int) $currentTenants->count(),
             'pending_registrations' => (int) $currentTenants->filter(function (Tenant $tenant) {
@@ -351,6 +360,8 @@ class SuperAdminController extends Controller
             'products' => $safeTenantMetricCount('products', static fn (): int => Product::count()),
             'sales_total' => $subscriptionSalesTotal,
             'total_database_bytes' => $totalDatabaseBytes,
+            'total_bandwidth_bytes' => $totalBandwidthBytes,
+            'total_bandwidth_usage' => $this->formatBytes((float) $totalBandwidthBytes),
             'failed_jobs' => $safeTableCount('failed_jobs'),
             'pending_jobs' => $safeTableCount('jobs'),
             'activity_logs' => $safeTableCount('activity_logs'),
@@ -379,6 +390,8 @@ class SuperAdminController extends Controller
                 'resolution_note',
             ]);
 
+        $versionInfo = $releaseService->latest();
+
         return view('super-admin.dashboard', [
             'stats' => $stats,
             'currentTenants' => $currentTenants,
@@ -388,6 +401,7 @@ class SuperAdminController extends Controller
             'centralAdmins' => $centralAdmins,
             'centralRoleOptions' => $this->centralRoleOptions(),
             'supportTickets' => $supportTickets,
+            'versionInfo' => $versionInfo,
         ]);
     }
 
@@ -922,5 +936,98 @@ class SuperAdminController extends Controller
                 'users_count' => 0,
             ];
         }
+    }
+
+    protected function resolveBandwidthUsage(Tenant $tenant): string
+    {
+        $bytes = $this->resolveBandwidthUsageBytes($tenant);
+
+        return $bytes === null ? $this->formatBytes(0) : $this->formatBytes((float) $bytes);
+    }
+
+    protected function resolveBandwidthUsageBytes(Tenant $tenant): ?int
+    {
+        $candidates = [
+            data_get($tenant->settings, 'usage.bandwidth_bytes'),
+            data_get($tenant->settings, 'usage.bandwidth.used_bytes'),
+            data_get($tenant->settings, 'metrics.bandwidth_bytes'),
+            data_get($tenant->settings, 'bandwidth_bytes'),
+            data_get($tenant->settings, 'bandwidth.used_bytes'),
+            data_get($tenant->settings, 'usage.bandwidth'),
+            data_get($tenant->settings, 'bandwidth'),
+        ];
+
+        foreach ($candidates as $candidate) {
+            $bytes = $this->parseBytesCandidate($candidate);
+
+            if ($bytes !== null) {
+                return $bytes;
+            }
+        }
+
+        return null;
+    }
+
+    protected function parseBytesCandidate(mixed $candidate): ?int
+    {
+        if (is_numeric($candidate)) {
+            $bytes = (float) $candidate;
+
+            if ($bytes < 0) {
+                return null;
+            }
+
+            return (int) round($bytes);
+        }
+
+        if (! is_string($candidate)) {
+            return null;
+        }
+
+        $value = trim($candidate);
+
+        if ($value === '') {
+            return null;
+        }
+
+        if (preg_match('/^([0-9]+(?:\.[0-9]+)?)\s*(B|KB|MB|GB|TB)$/i', $value, $matches) !== 1) {
+            return null;
+        }
+
+        $amount = (float) $matches[1];
+        $unit = strtoupper($matches[2]);
+        $multipliers = [
+            'B' => 1,
+            'KB' => 1024,
+            'MB' => 1024 ** 2,
+            'GB' => 1024 ** 3,
+            'TB' => 1024 ** 4,
+        ];
+
+        if (! array_key_exists($unit, $multipliers)) {
+            return null;
+        }
+
+        $bytes = $amount * $multipliers[$unit];
+
+        if ($bytes < 0) {
+            return null;
+        }
+
+        return (int) round($bytes);
+    }
+
+    protected function formatBytes(float $bytes): string
+    {
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        $value = max($bytes, 0);
+        $unitIndex = 0;
+
+        while ($value >= 1024 && $unitIndex < count($units) - 1) {
+            $value /= 1024;
+            $unitIndex++;
+        }
+
+        return number_format($value, 2).' '.$units[$unitIndex];
     }
 }

@@ -14,11 +14,13 @@ class DashboardController extends Controller
         $tenant = tenant();
         $customSections = $this->normalizeCustomSections(data_get($tenant->settings, 'dashboard.custom_sections'));
         $layout = $this->normalizeDashboardLayout(data_get($tenant->settings, 'dashboard.layout'), $customSections);
+        $navigationPosition = $this->normalizeNavigationPosition(data_get($tenant->settings, 'dashboard.navigation.position', 'top'));
 
         return view('dashboard.index', [
             'dashboardLayout' => $layout,
             'availableWidgets' => $this->availableWidgets(),
             'customSections' => $customSections,
+            'navigationPosition' => $navigationPosition,
             'canCustomizeDashboard' => Auth::user()?->hasRole('Owner') ?? false,
         ]);
     }
@@ -33,6 +35,7 @@ class DashboardController extends Controller
             'layout.bottom' => ['nullable', 'array'],
             'layout.top.*' => ['string'],
             'layout.bottom.*' => ['string'],
+            'navigation_position' => ['nullable', 'in:top,left,right'],
             'custom_sections' => ['nullable', 'array'],
             'custom_sections.*.id' => ['required', 'string'],
             'custom_sections.*.title' => ['required', 'string', 'max:80'],
@@ -43,9 +46,11 @@ class DashboardController extends Controller
         $settings = is_array($tenant->settings) ? $tenant->settings : [];
         $customSections = $this->normalizeCustomSections($validated['custom_sections'] ?? []);
         $layout = $this->normalizeDashboardLayout($validated['layout'] ?? null, $customSections);
+        $navigationPosition = $this->normalizeNavigationPosition($validated['navigation_position'] ?? data_get($settings, 'dashboard.navigation.position', 'top'));
 
         data_set($settings, 'dashboard.layout', $layout);
         data_set($settings, 'dashboard.custom_sections', $customSections);
+        data_set($settings, 'dashboard.navigation.position', $navigationPosition);
 
         $tenant->settings = $settings;
         $tenant->save();
@@ -54,6 +59,7 @@ class DashboardController extends Controller
             'message' => 'Dashboard layout saved.',
             'layout' => $layout,
             'custom_sections' => $customSections,
+            'navigation_position' => $navigationPosition,
         ]);
     }
 
@@ -64,9 +70,11 @@ class DashboardController extends Controller
         $tenant = tenant();
         $settings = is_array($tenant->settings) ? $tenant->settings : [];
         $defaultLayout = $this->defaultLayout();
+        $navigationPosition = $this->normalizeNavigationPosition(data_get($settings, 'dashboard.navigation.position', 'top'));
 
         data_set($settings, 'dashboard.layout', $defaultLayout);
         data_set($settings, 'dashboard.custom_sections', []);
+        data_set($settings, 'dashboard.navigation.position', $navigationPosition);
 
         $tenant->settings = $settings;
         $tenant->save();
@@ -75,6 +83,7 @@ class DashboardController extends Controller
             'message' => 'Dashboard layout reset to default.',
             'layout' => $defaultLayout,
             'custom_sections' => [],
+            'navigation_position' => $navigationPosition,
         ]);
     }
 
@@ -201,5 +210,10 @@ class DashboardController extends Controller
         }
 
         return array_values($normalized);
+    }
+
+    protected function normalizeNavigationPosition($position): string
+    {
+        return in_array($position, ['top', 'left', 'right'], true) ? $position : 'top';
     }
 }

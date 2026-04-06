@@ -9,7 +9,7 @@
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
-        <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
+        <link href="https://fonts.bunny.net/css?family=poppins:400,500,600,700&display=swap" rel="stylesheet" />
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -25,7 +25,7 @@
         $isSubdomainLogin = request()->routeIs('tenant.login');
         $guestCardWidthClass = $isTenantRegistration ? 'sm:max-w-2xl' : 'sm:max-w-md';
     @endphp
-    <body class="font-sans text-gray-900 antialiased" style="--brand-primary: {{ $brandPrimary }}; --brand-accent: {{ $brandAccent }}; --brand-background: {{ $brandBackground }};">
+    <body class="font-sans text-gray-900 antialiased" style="font-family: 'Poppins', sans-serif; --brand-primary: {{ $brandPrimary }}; --brand-accent: {{ $brandAccent }}; --brand-background: {{ $brandBackground }};">
         <div class="min-h-screen flex flex-col sm:justify-center items-center px-4 py-8 sm:py-10 brand-background">
             <div class="flex flex-col items-center">
                 @if ($logoPath && $tenant)

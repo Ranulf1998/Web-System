@@ -5,6 +5,7 @@ return [
         'name' => 'Starter',
         'price' => 500,
         'lease_days' => 30,
+        'bandwidth_limit_bytes' => 10 * 1024 * 1024 * 1024,
         'features' => [
             'pos',
             'product_management',
@@ -18,6 +19,7 @@ return [
         'name' => 'Standard',
         'price' => 1500,
         'lease_days' => 30,
+        'bandwidth_limit_bytes' => 20 * 1024 * 1024 * 1024,
         'features' => [
             'pos',
             'product_management',
@@ -33,6 +35,7 @@ return [
         'name' => 'Business',
         'price' => 2000,
         'lease_days' => 30,
+        'bandwidth_limit_bytes' => null,
         'features' => [
             'pos',
             'product_management',

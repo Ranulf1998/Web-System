@@ -124,6 +124,57 @@ class Tenant extends Model implements TenantWithDatabase
         return in_array($feature, $plans[$planKey]['features'] ?? [], true);
     }
 
+    public function bandwidthLimitBytes(): ?int
+    {
+        $limit = data_get(config('plans.' . $this->planKey(), []), 'bandwidth_limit_bytes');
+
+        if ($limit === null) {
+            return null;
+        }
+
+        if (! is_numeric($limit)) {
+            return null;
+        }
+
+        return max((int) $limit, 0);
+    }
+
+    public function currentMonthBandwidthUsageBytes(?string $monthKey = null): int
+    {
+        $resolvedMonthKey = $monthKey ?: now()->format('Y-m');
+        $monthly = data_get($this->settings, 'usage.bandwidth_monthly', []);
+
+        if (! is_array($monthly)) {
+            return 0;
+        }
+
+        $bytes = $monthly[$resolvedMonthKey] ?? 0;
+
+        return is_numeric($bytes) ? max((int) $bytes, 0) : 0;
+    }
+
+    public function isBandwidthLimitExceeded(?string $monthKey = null): bool
+    {
+        $limit = $this->bandwidthLimitBytes();
+
+        if ($limit === null) {
+            return false;
+        }
+
+        return $this->currentMonthBandwidthUsageBytes($monthKey) > $limit;
+    }
+
+    public function remainingBandwidthBytes(?string $monthKey = null): ?int
+    {
+        $limit = $this->bandwidthLimitBytes();
+
+        if ($limit === null) {
+            return null;
+        }
+
+        return max($limit - $this->currentMonthBandwidthUsageBytes($monthKey), 0);
+    }
+
     public function ensureRolesAndPermissions(): void
     {
         $tenantId = (int) $this->getKey();

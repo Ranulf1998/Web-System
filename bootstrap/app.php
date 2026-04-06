@@ -3,6 +3,7 @@
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\Exceptions\PostTooLargeException;
 use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -65,9 +66,22 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'tenant' => \App\Http\Middleware\IdentifyTenant::class,
+            'tenant.bandwidth' => \App\Http\Middleware\TrackTenantBandwidthUsage::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        $exceptions->render(function (PostTooLargeException $exception, Request $request) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => 'File too large. Please upload a smaller file.',
+                ], 413);
+            }
+
+            $previousUrl = url()->previous();
+            $targetUrl = is_string($previousUrl) && $previousUrl !== '' ? $previousUrl : url('/');
+            $separator = str_contains($targetUrl, '?') ? '&' : '?';
+
+            return redirect()->to($targetUrl.$separator.'upload_error=file_too_large');
+        });
     })->create();

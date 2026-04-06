@@ -8,17 +8,100 @@
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     @endif
+
+    <style>
+        .super-admin-theme {
+            background-color: var(--brand-background);
+        }
+
+        .super-admin-theme [class*="bg-zinc-100"] {
+            background-color: var(--brand-background) !important;
+        }
+
+        .super-admin-theme [class*="bg-indigo-600"],
+        .super-admin-theme [class*="bg-[color:var(--brand-primary)]"] {
+            background-color: var(--brand-primary) !important;
+        }
+
+        .super-admin-theme [class*="text-indigo-600"],
+        .super-admin-theme [class*="text-indigo-700"],
+        .super-admin-theme [class*="text-indigo-500"],
+        .super-admin-theme [class*="focus:ring-indigo-500"] {
+            color: var(--brand-primary) !important;
+        }
+
+        .super-admin-theme [class*="border-indigo-200"] {
+            border-color: color-mix(in srgb, var(--brand-primary) 24%, white) !important;
+        }
+
+        .super-admin-theme [class*="bg-indigo-50"],
+        .super-admin-theme [class*="bg-indigo-500/10"] {
+            background-color: color-mix(in srgb, var(--brand-primary) 12%, white) !important;
+        }
+
+        .super-admin-theme [class*="hover:bg-indigo-500"]:hover {
+            background-color: color-mix(in srgb, var(--brand-primary) 88%, black) !important;
+        }
+
+        .super-admin-secondary-button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            border-radius: 9999px;
+            border: 1px solid transparent;
+            background-color: var(--brand-primary);
+            padding: 0.625rem 1rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            line-height: 1.25rem;
+            color: #fff;
+            box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            transition: opacity 150ms ease;
+        }
+
+        .super-admin-secondary-button:hover {
+            opacity: 0.95;
+        }
+
+        .super-admin-secondary-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .super-admin-theme .card-action-button {
+            background-color: var(--brand-primary) !important;
+            color: #fff !important;
+            opacity: 1 !important;
+        }
+
+        .super-admin-theme .card-action-button:hover {
+            background-color: var(--brand-primary) !important;
+            opacity: 1 !important;
+        }
+    </style>
 </head>
-<body class="min-h-screen bg-slate-100 text-slate-900">
-    <header class="sticky top-0 z-40 border-b border-slate-200 bg-white">
-        <div class="mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-4">
-            <div>
-                <p class="text-xs uppercase tracking-[0.25em] text-indigo-600">BrewCloud Owner</p>
-                <h1 class="text-xl font-semibold">Super Admin Dashboard</h1>
+<body class="super-admin-theme min-h-screen bg-zinc-100 text-zinc-900 antialiased">
+    <div class="pointer-events-none fixed inset-0 overflow-hidden">
+        <div class="absolute -top-24 right-[-8rem] h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl"></div>
+        <div class="absolute left-[-7rem] top-40 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl"></div>
+    </div>
+
+    <header class="sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur-xl">
+        <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+            <div class="flex items-center gap-4">
+                <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--brand-primary)] text-sm font-semibold text-white shadow-lg shadow-[color:var(--brand-primary)]/20">
+                    BC
+                </div>
+                <div>
+                    <p class="text-[11px] font-semibold uppercase tracking-[0.28em] text-indigo-600">BrewCloud Owner</p>
+                    <h1 class="text-xl font-semibold tracking-tight text-zinc-950">Super Admin Dashboard</h1>
+                </div>
             </div>
             <form method="POST" action="{{ route('super-admin.logout') }}" data-super-admin-logout-form>
                 @csrf
-                <button type="button" data-open-super-admin-logout-modal class="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+                <button type="button" data-open-super-admin-logout-modal class="inline-flex items-center gap-2 rounded-full border border-transparent bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-95">
+                    <span class="h-2 w-2 rounded-full bg-rose-500"></span>
                     Logout
                 </button>
             </form>
@@ -39,63 +122,160 @@
             $superAdminAlertType = 'error';
             $superAdminAlertMessage = $errors->first('tenant_approval');
         }
+
+        $planBandwidthLabels = [
+            'basic' => '10 GB/month',
+            'starter' => '10 GB/month',
+            'standard' => '20 GB/month',
+            'business' => 'Unlimited',
+        ];
+
+        $formatPlanWithBandwidth = function (?string $plan) use ($planBandwidthLabels): string {
+            $rawPlan = strtolower(trim((string) $plan));
+            $normalizedPlan = str_contains($rawPlan, 'starter')
+                ? 'starter'
+                : (str_contains($rawPlan, 'standard')
+                    ? 'standard'
+                    : (str_contains($rawPlan, 'business')
+                        ? 'business'
+                        : (str_contains($rawPlan, 'basic') ? 'basic' : $rawPlan)));
+
+            $planName = (string) data_get(config('plans.' . $normalizedPlan), 'name', ucfirst($rawPlan));
+            $bandwidthLabel = $planBandwidthLabels[$normalizedPlan] ?? null;
+
+            return $bandwidthLabel ? $planName . ' (' . $bandwidthLabel . ')' : $planName;
+        };
     @endphp
 
-    <main class="mx-auto w-full max-w-7xl space-y-8 px-6 py-8">
+    <main class="relative mx-auto w-full max-w-[1600px] space-y-8 px-4 py-8 sm:px-6 lg:px-8">
 
-        <section class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+        <section class="overflow-hidden rounded-3xl border border-white/70 bg-white/85 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] backdrop-blur-xl">
+            <div class="grid gap-0 lg:grid-cols-[1.3fr_0.7fr]">
+                <div class="relative p-6 sm:p-8 lg:p-10">
+                    <div class="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+                        <span class="h-2 w-2 rounded-full bg-indigo-500"></span>
+                        Platform Overview
+                    </div>
+                    <div class="mt-5 max-w-3xl">
+                        <h2 class="text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">Operate tenants, subscriptions, and support from one polished control center.</h2>
+                        <p class="mt-3 max-w-2xl text-sm leading-6 text-zinc-600 sm:text-base">A Filament-inspired admin experience for quick scanning, fast actions, and clear operational visibility.</p>
+                    </div>
+
+                    <div class="mt-8 flex flex-wrap gap-3">
+                        <a href="#tenant-management" class="inline-flex items-center rounded-full bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-medium text-white opacity-100 shadow-sm transition hover:opacity-100">Open Tenant Management</a>
+                        <a href="#reports-analytics" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">View Reports</a>
+                        <a href="#support-tickets" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">Support Tickets</a>
+                    </div>
+
+                    <div class="mt-8 grid gap-3 sm:grid-cols-3">
+                        <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Tenants</div>
+                            <div class="mt-2 text-2xl font-semibold text-zinc-950">{{ number_format($stats['tenants']) }}</div>
+                            <div class="mt-1 text-xs text-zinc-500">Active and pending</div>
+                        </div>
+                        <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Revenue</div>
+                            <div class="mt-2 text-2xl font-semibold text-zinc-950">₱{{ number_format((float) $stats['sales_total'], 2) }}</div>
+                            <div class="mt-1 text-xs text-zinc-500">Subscription sales</div>
+                        </div>
+                        <div class="rounded-2xl border border-zinc-200 bg-zinc-50/80 p-4">
+                            <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Storage</div>
+                            <div class="mt-2 text-2xl font-semibold text-zinc-950">{{ number_format(((int) $stats['total_database_bytes']) / 1024 / 1024, 2) }} MB</div>
+                            <div class="mt-1 text-xs text-zinc-500">Total DB usage</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-zinc-200/80 bg-zinc-50/90 p-6 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
+                    <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <div class="text-xs font-semibold uppercase tracking-wide text-zinc-500">Health</div>
+                                <div class="mt-1 text-lg font-semibold text-zinc-950">Platform Snapshot</div>
+                            </div>
+                            <span class="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">Live</span>
+                        </div>
+
+                        <div class="mt-5 space-y-3">
+                            <div class="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3">
+                                <span class="text-sm text-zinc-600">Active subscriptions</span>
+                                <span class="text-sm font-semibold text-zinc-950">{{ number_format($stats['active_subscriptions']) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3">
+                                <span class="text-sm text-zinc-600">Expiring soon</span>
+                                <span class="text-sm font-semibold text-zinc-950">{{ number_format($stats['expiring_soon']) }}</span>
+                            </div>
+                            <div class="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3">
+                                <span class="text-sm text-zinc-600">Bandwidth usage</span>
+                                <span class="text-sm font-semibold text-zinc-950">{{ filled($stats['total_bandwidth_usage'] ?? null) ? $stats['total_bandwidth_usage'] : '0.00 B' }}</span>
+                            </div>
+                            <div class="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-3">
+                                <span class="text-sm text-zinc-600">Support tickets</span>
+                                <span class="text-sm font-semibold text-zinc-950">{{ number_format($stats['support_tickets']) }}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="text-sm text-slate-500">Total Tenants</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['tenants']) }}</div>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="text-sm text-slate-500">Pending Registrations</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['pending_registrations']) }}</div>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="text-sm text-slate-500">Active Subscriptions</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['active_subscriptions']) }}</div>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="text-sm text-slate-500">Inactive Subscriptions</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['inactive_subscriptions']) }}</div>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="text-sm text-slate-500">Expiring in 7 Days</div>
                 <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['expiring_soon']) }}</div>
             </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
-                <div class="text-sm text-slate-500">Subscription Sales</div>
-                <div class="mt-2 text-3xl font-semibold">₱{{ number_format((float) $stats['sales_total'], 2) }}</div>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
-                <div class="text-sm text-slate-500">Tenant Users</div>
-                <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['tenant_users']) }}</div>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
-                <div class="text-sm text-slate-500">Total DB Storage</div>
-                <div class="mt-2 text-3xl font-semibold">{{ number_format(((int) $stats['total_database_bytes']) / 1024 / 1024, 2) }} MB</div>
-            </div>
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
-                <div class="text-sm text-slate-500">Super Admin Accounts</div>
-                <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['super_admins']) }}</div>
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:col-span-2 xl:col-span-5">
+                <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div>
+                        <div class="text-sm text-slate-500">Subscription Sales</div>
+                        <div class="mt-2 text-3xl font-semibold">₱{{ number_format((float) $stats['sales_total'], 2) }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-slate-500">Tenant Users</div>
+                        <div class="mt-2 text-3xl font-semibold">{{ number_format($stats['tenant_users']) }}</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-slate-500">Total DB Storage</div>
+                        <div class="mt-2 text-3xl font-semibold">{{ number_format(((int) $stats['total_database_bytes']) / 1024 / 1024, 2) }} MB</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-slate-500">Total Bandwidth Usage</div>
+                        <div class="mt-2 text-3xl font-semibold">{{ filled($stats['total_bandwidth_usage'] ?? null) ? $stats['total_bandwidth_usage'] : '0.00 B' }}</div>
+                    </div>
+                </div>
             </div>
         </section>
 
         <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div id="reports-analytics" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="mb-2 flex items-center justify-between">
                     <h2 class="text-base font-semibold">Tenant Management</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
                 <p class="text-sm text-slate-600">List tenants, inspect lease/storage status, and manage suspension state.</p>
                 <p class="mt-3 text-sm text-slate-500">Current tenants: {{ number_format($stats['tenants']) }}</p>
-                <button type="button" data-open-tenant-management class="mt-3 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                <button type="button" data-open-tenant-management class="card-action-button mt-4 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white opacity-100 hover:bg-indigo-500 hover:opacity-100">
                     View Tenant Management
                 </button>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="mb-2 flex items-center justify-between">
                     <h2 class="text-base font-semibold">Subscription Management</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
@@ -103,42 +283,62 @@
                 <p class="text-sm text-slate-600">Plan-based lease tracking and active subscription counts are now visible.</p>
                 <p class="mt-3 text-sm text-slate-500">Active subscriptions: {{ number_format($stats['active_subscriptions']) }}</p>
                 <p class="mt-1 text-sm text-slate-500">Inactive subscriptions: {{ number_format($stats['inactive_subscriptions']) }}</p>
-                <button type="button" data-open-subscription-management class="mt-3 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                <button type="button" data-open-subscription-management class="card-action-button mt-4 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
                     View Subscription Management
                 </button>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="mb-2 flex items-center justify-between">
                     <h2 class="text-base font-semibold">Reports & Analytics</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
                 <p class="text-sm text-slate-600">Platform overview supports revenue tracking now; churn/MRR trends can be charted next.</p>
-                <button type="button" data-open-reports-analytics class="mt-3 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                <button type="button" data-open-reports-analytics class="card-action-button mt-4 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
                     View Reports & Analytics
                 </button>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-5">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="mb-2 flex items-center justify-between">
                     <h2 class="text-base font-semibold">User Management</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
                 <p class="text-sm text-slate-600">Manage central admin users and assign platform roles</p>
                 <p class="mt-3 text-sm text-slate-500">Tenant users: {{ number_format($stats['tenant_users']) }}</p>
-                <button type="button" data-open-user-management class="mt-3 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                <button type="button" data-open-user-management class="card-action-button mt-4 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
                     View User Management
                 </button>
             </div>
 
-            <div class="rounded-xl border border-slate-200 bg-white p-5 md:col-span-2 xl:col-span-3">
+            <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+                <div class="mb-2 flex items-center justify-between">
+                    <h2 class="text-base font-semibold">Support & Updates</h2>
+                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
+                </div>
+                <p class="text-sm text-slate-600">Track deployed app version and latest GitHub release.</p>
+                <p class="mt-3 text-sm text-slate-500">Current: {{ $versionInfo['current_version'] ?? 'dev' }}</p>
+                <p class="mt-1 text-sm text-slate-500">
+                    Latest: {{ $versionInfo['latest_version'] ?? 'Not available' }}
+                    @if (!empty($versionInfo['latest_url']))
+                        <a href="{{ $versionInfo['latest_url'] }}" target="_blank" rel="noopener noreferrer" class="ml-1 text-indigo-600 hover:underline">View release</a>
+                    @endif
+                </p>
+                @if (!empty($versionInfo['update_available']))
+                    <span class="mt-3 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">Update available</span>
+                @else
+                    <span class="mt-3 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Up to date</span>
+                @endif
+            </div>
+
+            <div id="support-tickets" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-3">
                 <div class="mb-2 flex items-center justify-between">
                     <h2 class="text-base font-semibold">Support / Tickets</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
                 <p class="text-sm text-slate-600">Receive and manage support tickets submitted by subdomain owners.</p>
                 <p class="mt-3 text-sm text-slate-500">Total tickets: {{ number_format($stats['support_tickets']) }}</p>
-                <button type="button" data-open-support-tickets class="mt-3 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                <button type="button" data-open-support-tickets class="card-action-button mt-4 rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
                     View Support Tickets
                 </button>
             </div>
@@ -150,7 +350,7 @@
             });
         @endphp
 
-        <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <section id="tenant-management" class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Pending Registrations</h2>
                 <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
@@ -176,7 +376,7 @@
                                 <td class="px-4 py-3 text-sm text-slate-800">{{ $tenant->name }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->subdomain }}.{{ config('app.domain') }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_email }}</td>
-                                <td class="px-4 py-3 text-sm text-slate-600">{{ ucfirst((string) $tenant->plan) }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $formatPlanWithBandwidth((string) $tenant->plan) }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
                                     @php
                                         $requestedAt = $tenant->display_requested_at;
@@ -222,7 +422,7 @@
             </div>
         </section>
 
-        <section class="rounded-xl border border-slate-200 bg-white p-6">
+        <section class="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Tenant Management - Current Tenants</h2>
                 <button type="button" data-open-tenant-domains class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
@@ -242,6 +442,7 @@
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Plan</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Lease Time</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Storage Use / DB</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Bandwidth</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Created</th>
                             <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">Actions</th>
                         </tr>
@@ -270,7 +471,7 @@
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_email }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_tenant_address }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_owner_name }}</td>
-                                <td class="px-4 py-3 text-sm text-slate-600">{{ ucfirst((string) $tenant->plan) }}</td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $formatPlanWithBandwidth((string) $tenant->plan) }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
                                     @if ($tenant->display_lease_starts_at && $tenant->display_lease_ends_at)
                                         @php
@@ -304,6 +505,7 @@
                                         <span class="text-slate-400">N/A</span>
                                     @endif
                                 </td>
+                                <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->display_bandwidth_usage }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">{{ $tenant->created_at?->format('M j, Y g:i A') }}</td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
                                     <div class="flex items-center gap-2">
@@ -313,13 +515,14 @@
                                             data-tenant-id="{{ $tenant->id }}"
                                             data-tenant-name="{{ $tenant->name }}"
                                             data-tenant-subdomain="{{ $tenant->subdomain }}"
-                                            data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
+                                            data-tenant-plan="{{ $formatPlanWithBandwidth((string) $tenant->plan) }}"
                                             data-tenant-lease="{{ $tenant->display_lease_starts_at?->format('M j, Y') }} - {{ $tenant->display_lease_ends_at?->format('M j, Y') }}"
                                             data-tenant-months="{{ $tenant->display_subscription_months }}"
                                             data-tenant-storage="{{ is_int($tenant->database_bytes) ? number_format($tenant->database_bytes / 1024 / 1024, 2) . ' MB' : 'N/A' }}"
                                             data-tenant-db="{{ $tenant->database_name ?? 'N/A' }}"
+                                            data-tenant-bandwidth="{{ $tenant->display_bandwidth_usage }}"
                                             data-tenant-status="{{ $tenant->display_is_suspended ? 'Suspended' : 'Active' }}"
-                                            class="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50"
+                                            class="super-admin-secondary-button"
                                         >
                                             View Details
                                         </button>
@@ -340,7 +543,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10" class="px-4 py-6 text-center text-sm text-slate-500">No tenants found.</td>
+                                <td colspan="11" class="px-4 py-6 text-center text-sm text-slate-500">No tenants found.</td>
                             </tr>
                         @endforelse
                     </tbody>
@@ -349,19 +552,19 @@
         </section>
     </main>
 
-    <dialog id="super-admin-logout-confirm-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="super-admin-logout-confirm-modal" class="w-full max-w-md rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <h3 class="text-base font-semibold text-slate-900">Confirm Logout</h3>
             <p class="mt-2 text-sm text-slate-600">Are you sure you want to log out?</p>
 
             <div class="mt-5 flex items-center justify-end gap-2">
-                <button type="button" data-super-admin-logout-cancel class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" data-super-admin-logout-cancel class="super-admin-secondary-button">Cancel</button>
                 <button type="button" data-super-admin-logout-confirm class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Log Out</button>
             </div>
         </div>
     </dialog>
 
-    <dialog id="registration-action-confirm-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="registration-action-confirm-modal" class="w-full max-w-md rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <h3 class="text-base font-semibold text-slate-900" data-registration-modal-title>Confirm Action</h3>
             <p class="mt-2 text-sm text-slate-600" data-registration-modal-message>Are you sure you want to continue?</p>
@@ -380,7 +583,7 @@
             </div>
 
             <div class="mt-5 flex items-center justify-end gap-2">
-                <button type="button" data-registration-modal-cancel class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" data-registration-modal-cancel class="super-admin-secondary-button">Cancel</button>
                 <form method="POST" data-registration-modal-form>
                     @csrf
                     <button type="submit" data-registration-modal-confirm class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-500">Confirm</button>
@@ -390,7 +593,7 @@
     </dialog>
 
     @if ($superAdminAlertMessage)
-        <dialog id="super-admin-message-alert-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+        <dialog id="super-admin-message-alert-modal" class="w-full max-w-md rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
             <div class="rounded-xl bg-white p-6">
                 <h3 class="text-base font-semibold text-slate-900">
                     {{ $superAdminAlertType === 'success' ? 'Success' : 'Alert' }}
@@ -407,38 +610,38 @@
     @endif
 
     <!-- Suspend Confirmation Modal -->
-    <dialog id="suspend-confirmation-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="suspend-confirmation-modal" class="w-full max-w-md rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <h3 class="text-base font-semibold text-rose-700">Confirm Suspension</h3>
             <p class="mt-3 text-sm text-slate-700">
                 Are you sure you want to suspend <span id="suspend-tenant-name" class="font-semibold"></span>? This will prevent access to the shop.
             </p>
             <div class="mt-5 flex items-center justify-end gap-3">
-                <button type="button" id="suspend-cancel-btn" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" id="suspend-cancel-btn" class="super-admin-secondary-button">Cancel</button>
                 <button type="button" id="suspend-confirm-btn" class="rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-500">Suspend</button>
             </div>
         </div>
     </dialog>
 
     <!-- Unsuspend Confirmation Modal -->
-    <dialog id="unsuspend-confirmation-modal" class="w-full max-w-md rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="unsuspend-confirmation-modal" class="w-full max-w-md rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <h3 class="text-base font-semibold text-emerald-700">Confirm Reactivation</h3>
             <p class="mt-3 text-sm text-slate-700">
                 Are you sure you want to unsuspend <span id="unsuspend-tenant-name" class="font-semibold"></span>? This will restore access to the shop.
             </p>
             <div class="mt-5 flex items-center justify-end gap-3">
-                <button type="button" id="unsuspend-cancel-btn" class="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">Cancel</button>
+                <button type="button" id="unsuspend-cancel-btn" class="super-admin-secondary-button">Cancel</button>
                 <button type="button" id="unsuspend-confirm-btn" class="rounded-md bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-500">Unsuspend</button>
             </div>
         </div>
     </dialog>
 
-    <dialog id="tenant-domains-modal" class="w-full max-w-2xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="tenant-domains-modal" class="w-full max-w-2xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Tenant Domains</h2>
-                <button type="button" data-close-tenant-domains class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-tenant-domains class="super-admin-secondary-button">Close</button>
             </div>
 
             @php
@@ -466,11 +669,11 @@
         </div>
     </dialog>
 
-    <dialog id="tenant-management-modal" class="w-full max-w-5xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="tenant-management-modal" class="w-full max-w-5xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Tenant Management</h2>
-                <button type="button" data-close-tenant-management class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-tenant-management class="super-admin-secondary-button">Close</button>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -503,6 +706,9 @@
                     <div class="mt-1 text-sm text-slate-700" data-tenant-detail="storage">-</div>
                     <div class="mt-1 text-xs text-slate-500" data-tenant-detail="db">-</div>
 
+                    <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Bandwidth Usage</div>
+                    <div class="mt-1 text-sm text-slate-700" data-tenant-detail="bandwidth">-</div>
+
                     <div class="mt-3 text-xs uppercase tracking-wide text-slate-500">Status</div>
                     <div class="mt-1 text-sm font-medium text-slate-700" data-tenant-detail="status">-</div>
                 </div>
@@ -530,11 +736,12 @@
                                     data-tenant-email="{{ $tenant->display_tenant_email }}"
                                     data-tenant-address="{{ $tenant->display_tenant_address }}"
                                     data-tenant-owner="{{ $tenant->display_owner_name }}"
-                                    data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
+                                    data-tenant-plan="{{ $formatPlanWithBandwidth((string) $tenant->plan) }}"
                                     data-tenant-lease="{{ $tenant->display_lease_starts_at?->format('M j, Y') }} - {{ $tenant->display_lease_ends_at?->format('M j, Y') }}"
                                     data-tenant-months="{{ $tenant->display_subscription_months }}"
                                     data-tenant-storage="{{ is_int($tenant->database_bytes) ? number_format($tenant->database_bytes / 1024 / 1024, 2) . ' MB' : 'N/A' }}"
                                     data-tenant-db="{{ $tenant->database_name ?? 'N/A' }}"
+                                    data-tenant-bandwidth="{{ $tenant->display_bandwidth_usage }}"
                                     data-tenant-status="{{ $statusLabel }}"
                                 >
                                     {{ $tenant->name }} ({{ $tenant->subdomain }})
@@ -560,16 +767,19 @@
                         </form>
                     </div>
 
-                    <form method="POST" action="{{ route('super-admin.tenants.suspend', ['tenant' => '__TENANT_ID__']) }}" data-tenant-suspend-form class="mt-3">
+                    <form method="POST" action="{{ route('super-admin.tenants.suspend', ['tenant' => '__TENANT_ID__']) }}" data-tenant-toggle-form class="mt-3">
                         @csrf
                         <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">Reason (optional)</label>
                         <input name="reason" type="text" maxlength="255" class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm" placeholder="Policy review, billing issue, etc.">
-                        <button type="submit" data-tenant-suspend-submit disabled class="mt-3 rounded-md border border-rose-300 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50">Suspend Selected Tenant</button>
-                    </form>
-
-                    <form method="POST" action="{{ route('super-admin.tenants.unsuspend', ['tenant' => '__TENANT_ID__']) }}" data-tenant-unsuspend-form class="mt-3">
-                        @csrf
-                        <button type="submit" data-tenant-unsuspend-submit disabled class="rounded-md border border-emerald-300 px-3 py-2 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50">Unsuspend Selected Tenant</button>
+                        <button
+                            type="submit"
+                            data-tenant-toggle-submit
+                            data-tenant-toggle-action="suspend"
+                            disabled
+                            class="mt-3 rounded-md border border-rose-300 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Suspend Selected Tenant
+                        </button>
                     </form>
                 </div>
             </div>
@@ -578,11 +788,11 @@
         </div>
     </dialog>
 
-    <dialog id="subscription-management-modal" class="w-full max-w-5xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="subscription-management-modal" class="w-full max-w-5xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Subscription Management</h2>
-                <button type="button" data-close-subscription-management class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-subscription-management class="super-admin-secondary-button">Close</button>
             </div>
 
             <div class="grid gap-4 md:grid-cols-2">
@@ -599,7 +809,7 @@
                                 data-tenant-address="{{ $tenant->display_tenant_address }}"
                                 data-tenant-owner="{{ $tenant->display_owner_name }}"
                                 data-tenant-plan-key="{{ $tenant->planKey() }}"
-                                data-tenant-plan="{{ ucfirst((string) $tenant->plan) }}"
+                                data-tenant-plan="{{ $formatPlanWithBandwidth((string) $tenant->plan) }}"
                                 data-tenant-subdomain="{{ $tenant->subdomain }}"
                                 data-tenant-lease-end="{{ $tenant->display_lease_ends_at?->format('M j, Y') ?? 'Not set' }}"
                                 data-tenant-months="{{ $tenant->display_subscription_months }}"
@@ -692,11 +902,11 @@
         </div>
     </dialog>
 
-    <dialog id="reports-analytics-modal" class="w-full max-w-6xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="reports-analytics-modal" class="w-full max-w-6xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Reports & Analytics</h2>
-                <button type="button" data-close-reports-analytics class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-reports-analytics class="super-admin-secondary-button">Close</button>
             </div>
 
             <section class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -733,7 +943,7 @@
                             <tbody>
                                 @forelse ($mrrByPlan as $row)
                                     <tr class="border-b border-slate-100 text-slate-700">
-                                        <td class="py-2 pr-2">{{ $row['plan'] }}</td>
+                                        <td class="py-2 pr-2">{{ $formatPlanWithBandwidth((string) $row['plan']) }}</td>
                                         <td class="py-2 pr-2">{{ number_format((int) $row['tenants']) }}</td>
                                         <td class="py-2">₱{{ number_format((float) $row['mrr'], 2) }}</td>
                                     </tr>
@@ -796,9 +1006,24 @@
                                 <tr class="border-b border-slate-100 text-slate-700">
                                     <td class="py-2 pr-2">{{ $row['tenant_name'] }}</td>
                                     <td class="py-2 pr-2">{{ $row['subdomain'] }}</td>
-                                    <td class="py-2 pr-2">{{ $row['plan'] }}</td>
+                                    <td class="py-2 pr-2">{{ $formatPlanWithBandwidth((string) $row['plan']) }}</td>
                                     <td class="py-2 pr-2">{{ $row['lease_end']?->format('M j, Y') ?? 'N/A' }}</td>
-                                    <td class="py-2">{{ is_int($row['days_left']) ? $row['days_left'] : 'N/A' }}</td>
+                                    <td class="py-2">
+                                        @if (is_numeric($row['days_left']))
+                                            @php
+                                                $daysLeft = (int) $row['days_left'];
+                                            @endphp
+                                            @if ($daysLeft > 0)
+                                                {{ $daysLeft }} {{ $daysLeft === 1 ? 'day' : 'days' }} left
+                                            @elseif ($daysLeft === 0)
+                                                Expires today
+                                            @else
+                                                Expired {{ abs($daysLeft) }} {{ abs($daysLeft) === 1 ? 'day' : 'days' }} ago
+                                            @endif
+                                        @else
+                                            N/A
+                                        @endif
+                                    </td>
                                 </tr>
                             @empty
                                 <tr>
@@ -812,11 +1037,11 @@
         </div>
     </dialog>
 
-    <dialog id="support-tickets-modal" class="w-full max-w-6xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="support-tickets-modal" class="w-full max-w-6xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">Support Tickets</h2>
-                <button type="button" data-close-support-tickets class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-support-tickets class="super-admin-secondary-button">Close</button>
             </div>
 
             <div class="overflow-x-auto">
@@ -859,7 +1084,7 @@
                                             placeholder="Resolution note (optional)"
                                             class="w-full rounded-md border border-slate-300 px-2 py-1 text-xs"
                                         >
-                                        <button type="submit" class="rounded-md border border-indigo-300 px-2 py-1 text-xs text-indigo-700 hover:bg-indigo-50">Update</button>
+                                        <button type="submit" class="super-admin-secondary-button">Update</button>
                                     </form>
                                 </td>
                             </tr>
@@ -874,11 +1099,11 @@
         </div>
     </dialog>
 
-    <dialog id="user-management-modal" class="w-full max-w-6xl rounded-xl border border-slate-200 p-0 backdrop:bg-slate-900/50">
+    <dialog id="user-management-modal" class="w-full max-w-6xl rounded-2xl border border-zinc-200 p-0 backdrop:bg-zinc-950/50">
         <div class="rounded-xl bg-white p-6">
             <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold">User Management - Central Admin Controls</h2>
-                <button type="button" data-close-user-management class="rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50">Close</button>
+                <button type="button" data-close-user-management class="super-admin-secondary-button">Close</button>
             </div>
 
             <form method="POST" action="{{ route('super-admin.central-admins.store') }}" class="mb-6 grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 md:grid-cols-2 lg:grid-cols-5">
@@ -938,7 +1163,7 @@
                                                 <option value="{{ $roleOption }}" @selected(($admin->roles->first()?->name) === $roleOption)>{{ $roleOption }}</option>
                                             @endforeach
                                         </select>
-                                        <button type="submit" class="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50">Update</button>
+                                        <button type="submit" class="super-admin-secondary-button">Update</button>
                                     </form>
                                 </td>
                                 <td class="px-4 py-3 text-sm text-slate-600">
@@ -1166,37 +1391,49 @@
                 months: document.querySelector('[data-tenant-detail="months"]'),
                 storage: document.querySelector('[data-tenant-detail="storage"]'),
                 db: document.querySelector('[data-tenant-detail="db"]'),
+                bandwidth: document.querySelector('[data-tenant-detail="bandwidth"]'),
                 status: document.querySelector('[data-tenant-detail="status"]'),
             };
-            const tenantSuspendForm = document.querySelector('[data-tenant-suspend-form]');
-            const tenantUnsuspendForm = document.querySelector('[data-tenant-unsuspend-form]');
-            const tenantSuspendSubmit = document.querySelector('[data-tenant-suspend-submit]');
-            const tenantUnsuspendSubmit = document.querySelector('[data-tenant-unsuspend-submit]');
+            const tenantToggleForm = document.querySelector('[data-tenant-toggle-form]');
+            const tenantToggleSubmit = document.querySelector('[data-tenant-toggle-submit]');
             const tenantApproveForm = document.querySelector('[data-tenant-approve-form]');
             const tenantDeclineForm = document.querySelector('[data-tenant-decline-form]');
             const tenantApproveSubmit = document.querySelector('[data-tenant-approve-submit]');
             const tenantDeclineSubmit = document.querySelector('[data-tenant-decline-submit]');
             const tenantSelector = document.getElementById('tenant-management-selector');
 
-            const updateTenantActions = (tenantId) => {
-                if (!tenantSuspendForm || !tenantUnsuspendForm || !tenantId) {
-                    if (tenantSuspendSubmit) tenantSuspendSubmit.disabled = true;
-                    if (tenantUnsuspendSubmit) tenantUnsuspendSubmit.disabled = true;
+            const updateTenantActions = (tenantId, tenantStatus = '') => {
+                if (!tenantToggleForm || !tenantId) {
+                    if (tenantToggleSubmit) tenantToggleSubmit.disabled = true;
                     if (tenantApproveSubmit) tenantApproveSubmit.disabled = true;
                     if (tenantDeclineSubmit) tenantDeclineSubmit.disabled = true;
                     return;
                 }
 
-                tenantSuspendForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/suspend`;
-                tenantUnsuspendForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/unsuspend`;
+                const normalizedStatus = String(tenantStatus || '').toLowerCase();
+                const isSuspended = normalizedStatus.includes('suspended');
+                const actionType = isSuspended ? 'unsuspend' : 'suspend';
+
+                tenantToggleForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/${actionType}`;
+
+                if (tenantToggleSubmit) {
+                    tenantToggleSubmit.disabled = false;
+                    tenantToggleSubmit.setAttribute('data-tenant-toggle-action', actionType);
+                    tenantToggleSubmit.textContent = isSuspended ? 'Unsuspend Selected Tenant' : 'Suspend Selected Tenant';
+                    tenantToggleSubmit.classList.toggle('border-rose-300', !isSuspended);
+                    tenantToggleSubmit.classList.toggle('text-rose-700', !isSuspended);
+                    tenantToggleSubmit.classList.toggle('hover:bg-rose-50', !isSuspended);
+                    tenantToggleSubmit.classList.toggle('border-emerald-300', isSuspended);
+                    tenantToggleSubmit.classList.toggle('text-emerald-700', isSuspended);
+                    tenantToggleSubmit.classList.toggle('hover:bg-emerald-50', isSuspended);
+                }
+
                 if (tenantApproveForm) {
                     tenantApproveForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/approve`;
                 }
                 if (tenantDeclineForm) {
                     tenantDeclineForm.action = `{{ url('/super-admin/tenants') }}/${tenantId}/decline`;
                 }
-                if (tenantSuspendSubmit) tenantSuspendSubmit.disabled = false;
-                if (tenantUnsuspendSubmit) tenantUnsuspendSubmit.disabled = false;
                 if (tenantApproveSubmit) tenantApproveSubmit.disabled = false;
                 if (tenantDeclineSubmit) tenantDeclineSubmit.disabled = false;
             };
@@ -1218,9 +1455,10 @@
                 if (tenantDetailNodes.months) tenantDetailNodes.months.textContent = `${get('months')} month(s)`;
                 if (tenantDetailNodes.storage) tenantDetailNodes.storage.textContent = get('storage');
                 if (tenantDetailNodes.db) tenantDetailNodes.db.textContent = get('db');
+                if (tenantDetailNodes.bandwidth) tenantDetailNodes.bandwidth.textContent = get('bandwidth');
                 if (tenantDetailNodes.status) tenantDetailNodes.status.textContent = get('status');
 
-                updateTenantActions(source.getAttribute('data-tenant-id'));
+                updateTenantActions(source.getAttribute('data-tenant-id'), get('status'));
             };
 
             if (tenantSelector) {
@@ -1228,7 +1466,7 @@
                     const selected = tenantSelector.options[tenantSelector.selectedIndex];
 
                     if (!selected || !selected.value) {
-                        updateTenantActions('');
+                        updateTenantActions('', '');
 
                         if (tenantDetailNodes.name) tenantDetailNodes.name.textContent = 'Select a tenant';
                         if (tenantDetailNodes.subdomain) tenantDetailNodes.subdomain.textContent = '-';
@@ -1240,6 +1478,7 @@
                         if (tenantDetailNodes.months) tenantDetailNodes.months.textContent = '-';
                         if (tenantDetailNodes.storage) tenantDetailNodes.storage.textContent = '-';
                         if (tenantDetailNodes.db) tenantDetailNodes.db.textContent = '-';
+                        if (tenantDetailNodes.bandwidth) tenantDetailNodes.bandwidth.textContent = '-';
                         if (tenantDetailNodes.status) tenantDetailNodes.status.textContent = '-';
                         return;
                     }
@@ -1259,7 +1498,7 @@
                             fillTenantDetails(selected);
                         } else if (tenantSelector) {
                             tenantSelector.value = '';
-                            updateTenantActions('');
+                            updateTenantActions('', '');
                         }
 
                         if (tenantId) {
@@ -1470,6 +1709,9 @@
             const unsuspendConfirmBtn = document.getElementById('unsuspend-confirm-btn');
             const suspendTenantName = document.getElementById('suspend-tenant-name');
             const unsuspendTenantName = document.getElementById('unsuspend-tenant-name');
+            const tenantToggleForm = document.querySelector('[data-tenant-toggle-form]');
+            const tenantToggleSubmit = document.querySelector('[data-tenant-toggle-submit]');
+            const tenantSelector = document.getElementById('tenant-management-selector');
 
             let pendingForm = null;
 
@@ -1495,25 +1737,24 @@
                 });
             });
 
-            // Handle bulk suspend form
-            const tenantSuspendForm = document.querySelector('[data-tenant-suspend-form]');
-            if (tenantSuspendForm) {
-                tenantSuspendForm.addEventListener('submit', function (e) {
+            // Handle dynamic bulk suspend/unsuspend form
+            if (tenantToggleForm) {
+                tenantToggleForm.addEventListener('submit', function (e) {
                     e.preventDefault();
                     pendingForm = this;
-                    if (suspendTenantName) suspendTenantName.textContent = 'the selected tenant';
-                    if (suspendModal) suspendModal.showModal();
-                });
-            }
 
-            // Handle bulk unsuspend form
-            const tenantUnsuspendForm = document.querySelector('[data-tenant-unsuspend-form]');
-            if (tenantUnsuspendForm) {
-                tenantUnsuspendForm.addEventListener('submit', function (e) {
-                    e.preventDefault();
-                    pendingForm = this;
-                    if (unsuspendTenantName) unsuspendTenantName.textContent = 'the selected tenant';
-                    if (unsuspendModal) unsuspendModal.showModal();
+                    const actionType = tenantToggleSubmit?.getAttribute('data-tenant-toggle-action') || 'suspend';
+                    const selectedOption = tenantSelector ? tenantSelector.options[tenantSelector.selectedIndex] : null;
+                    const tenantName = selectedOption?.getAttribute('data-tenant-name') || 'the selected tenant';
+
+                    if (actionType === 'unsuspend') {
+                        if (unsuspendTenantName) unsuspendTenantName.textContent = tenantName;
+                        if (unsuspendModal) unsuspendModal.showModal();
+                        return;
+                    }
+
+                    if (suspendTenantName) suspendTenantName.textContent = tenantName;
+                    if (suspendModal) suspendModal.showModal();
                 });
             }
 

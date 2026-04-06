@@ -61,7 +61,7 @@ Route::domain(config('app.domain'))->group(function () {
 |--------------------------------------------------------------------------
 */
 Route::domain('{subdomain}.' . config('app.domain'))
-    ->middleware(['web', 'tenant']) // 'tenant' middleware must be registered in Kernel
+    ->middleware(['web', 'tenant', 'tenant.bandwidth']) // 'tenant' middleware must be registered in Kernel
     ->group(function () {
 
         // Guest routes (login, register for users of this tenant)

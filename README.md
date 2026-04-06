@@ -57,3 +57,27 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## BrewCloud Versioning and Releases
+
+- `APP_VERSION` defines the currently deployed app version.
+- Latest release data is pulled from GitHub Releases via:
+	- `GITHUB_REPO` (supports `owner/repo` or full GitHub repository URL)
+	- `GITHUB_TOKEN` (optional, recommended for higher API limits)
+	- `GITHUB_RELEASE_CACHE_MINUTES` (cache TTL in minutes)
+
+### Environment Variables
+
+```env
+APP_VERSION=dev
+GITHUB_REPO=your-org/cofeesaas
+GITHUB_TOKEN=
+GITHUB_RELEASE_CACHE_MINUTES=15
+```
+
+### Release Flow
+
+1. Tag and push a new version.
+2. Create a GitHub Release for that tag.
+3. Set production `APP_VERSION` to the deployed tag.
+4. Super Admin Dashboard will show current version, latest release, and update status.
