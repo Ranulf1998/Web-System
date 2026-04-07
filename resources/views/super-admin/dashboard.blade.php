@@ -162,7 +162,7 @@
                     </div>
 
                     <div class="mt-8 flex flex-wrap gap-3">
-                        <a href="#tenant-management" class="inline-flex items-center rounded-full bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-medium text-white opacity-100 shadow-sm transition hover:opacity-100">Open Tenant Management</a>
+                        <a href="#tenant-management" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">Open Tenant Management</a>
                         <a href="#reports-analytics" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">View Reports</a>
                         <a href="#support-tickets" class="inline-flex items-center rounded-full border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">Support Tickets</a>
                     </div>
