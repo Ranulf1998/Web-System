@@ -32,6 +32,28 @@
                 </div>
             @endif
 
+            @if (!empty($otaInfo['applied_at']))
+                <div class="rounded-3xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 shadow-sm">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div class="font-semibold">Last OTA processed</div>
+                            <div>Last OTA processed at {{ \Illuminate\Support\Carbon::parse($otaInfo['applied_at'])->format('M j, Y g:i A') }}.</div>
+                        </div>
+
+                        @if (!empty($otaInfo['release_url']))
+                            <a
+                                href="{{ $otaInfo['release_url'] }}"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="inline-flex items-center rounded-full border border-emerald-800 px-4 py-2 text-xs font-semibold text-emerald-900 transition hover:bg-emerald-100"
+                            >
+                                View release
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             <div class="rounded-3xl border border-white/70 bg-white/90 p-6 shadow-[0_20px_60px_-30px_rgba(15,23,42,0.25)] backdrop-blur-xl">
                 <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>

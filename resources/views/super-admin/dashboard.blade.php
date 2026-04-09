@@ -338,9 +338,21 @@
                         <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Up to date</span>
                     @endif
 
+                    @if (!empty($versionInfo['latest_version']))
+                        <form method="POST" action="{{ route('super-admin.updates.apply-latest') }}">
+                            @csrf
+                            <input type="hidden" name="release_tag" value="{{ $versionInfo['latest_version'] }}">
+                            <input type="hidden" name="publish_selected" value="0">
+                            <button type="submit" class="rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-500">
+                                Download latest
+                            </button>
+                        </form>
+                    @endif
+
                     @if (count($releases))
                         <form method="POST" action="{{ route('super-admin.updates.apply-latest') }}" class="space-y-2">
                             @csrf
+                            <input type="hidden" name="publish_selected" value="1">
                             <label for="super-admin-release" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Choose version</label>
                             <select id="super-admin-release" name="release_tag" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
                                 @foreach ($releases as $release)

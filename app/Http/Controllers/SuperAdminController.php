@@ -429,6 +429,7 @@ class SuperAdminController extends Controller
 
         $validated = $request->validate([
             'release_tag' => ['nullable', 'string', 'max:50'],
+            'publish_selected' => ['nullable', 'boolean'],
         ]);
 
         $requestedTag = trim((string) ($validated['release_tag'] ?? ''));
@@ -478,6 +479,14 @@ class SuperAdminController extends Controller
             'selected_at' => now()->toIso8601String(),
             'selected_by' => auth()->id(),
         ]);
+
+        $publishSelected = (bool) ($validated['publish_selected'] ?? false);
+
+        if (! $publishSelected) {
+            return redirect()
+                ->route('super-admin.dashboard')
+                ->with('status', 'Downloaded latest metadata for ' . $selectedTag . '. Tenant emails were not sent.');
+        }
 
         ProcessTenantOtaUpdateJob::dispatch(
             releaseTag: $selectedTag,
