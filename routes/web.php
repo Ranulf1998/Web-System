@@ -13,8 +13,10 @@ use App\Http\Controllers\BrewingGuideController;
 use App\Http\Controllers\AccountabilityController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\SupportTicketController;
+use App\Http\Controllers\GitHubWebhookController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PaymentController;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 
 /*
 |--------------------------------------------------------------------------
@@ -54,6 +56,14 @@ Route::domain(config('app.domain'))->group(function () {
 
     // Optional: super admin routes can go here (with separate middleware)
 });
+
+Route::post('/webhooks/github', GitHubWebhookController::class)
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('webhooks.github');
+
+Route::post('/api/github-webhook', GitHubWebhookController::class)
+    ->withoutMiddleware([VerifyCsrfToken::class])
+    ->name('webhooks.github.api');
 
 /*
 |--------------------------------------------------------------------------

@@ -76,9 +76,40 @@
             $orderedWidgets = array_values(array_unique(array_merge($topWidgets, $bottomWidgets)));
             $customSectionMap = collect($customSections ?? [])->keyBy('id')->all();
             $navigationPosition = $navigationPosition ?? 'top';
+            $otaBanner = $otaBanner ?? ['visible' => false];
         @endphp
 
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
+            @if (!empty($otaBanner['visible']))
+                <div class="mb-6 rounded-2xl border {{ ($otaBanner['variant'] ?? 'neutral') === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900' }} px-4 py-3 shadow-sm">
+                    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <div class="text-sm font-semibold">
+                                {{ $otaBanner['title'] ?? 'OTA status' }}
+                            </div>
+                            <div class="text-sm">
+                                @if (($otaBanner['variant'] ?? 'neutral') === 'warning')
+                                    Release {{ $otaBanner['message'] ?? 'available' }} is ready for this tenant.
+                                @else
+                                    Last OTA processed at {{ \Illuminate\Support\Carbon::parse($otaBanner['message'])->format('M j, Y g:i A') }}.
+                                @endif
+                            </div>
+                        </div>
+
+                        @if (!empty($otaBanner['release_url']))
+                            <a
+                                href="{{ $otaBanner['release_url'] }}"
+                                target="_blank"
+                                rel="noreferrer"
+                                class="inline-flex items-center rounded-full border border-current px-4 py-2 text-xs font-semibold transition {{ ($otaBanner['variant'] ?? 'neutral') === 'warning' ? 'bg-amber-900 text-white hover:bg-amber-800' : 'bg-emerald-900 text-white hover:bg-emerald-800' }}"
+                            >
+                                {{ $otaBanner['action_label'] ?? 'View release' }}
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
             @if ($canCustomizeDashboard)
                 <div x-cloak x-show="customizeOpen" class="mb-6 dashboard-panel p-6 space-y-4">
                     <div class="dashboard-header">

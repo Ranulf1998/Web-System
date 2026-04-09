@@ -26,7 +26,7 @@ class GitHubReleaseService
         }
 
         return Cache::remember(
-            "github_latest_release_{$repo}",
+            $this->cacheKey($repo),
             now()->addMinutes((int) config('version.cache_minutes', 15)),
             function () use ($repo, $current, $normalizedCurrent) {
                 $verify = (bool) config('version.verify_ssl', app()->isProduction());
@@ -98,6 +98,13 @@ class GitHubReleaseService
         }
 
         return trim($trimmed, '/');
+    }
+
+    public function cacheKey(?string $repo = null): string
+    {
+        $resolvedRepo = $this->normalizeRepo((string) ($repo ?? config('version.github_repo', '')));
+
+        return "github_latest_release_{$resolvedRepo}";
     }
 
     protected function normalizeVersion(string $value): string

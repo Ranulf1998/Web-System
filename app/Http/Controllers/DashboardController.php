@@ -12,16 +12,19 @@ class DashboardController extends Controller
     public function index()
     {
         $tenant = tenant();
+        $isOwner = Auth::user()?->hasRole('Owner') ?? false;
         $customSections = $this->normalizeCustomSections(data_get($tenant->settings, 'dashboard.custom_sections'));
         $layout = $this->normalizeDashboardLayout(data_get($tenant->settings, 'dashboard.layout'), $customSections);
         $navigationPosition = $this->normalizeNavigationPosition(data_get($tenant->settings, 'dashboard.navigation.position', 'top'));
+        $otaState = $isOwner ? $this->resolveOtaBannerState($tenant->settings ?? []) : ['visible' => false];
 
         return view('dashboard.index', [
             'dashboardLayout' => $layout,
             'availableWidgets' => $this->availableWidgets(),
             'customSections' => $customSections,
             'navigationPosition' => $navigationPosition,
-            'canCustomizeDashboard' => Auth::user()?->hasRole('Owner') ?? false,
+            'canCustomizeDashboard' => $isOwner,
+            'otaBanner' => $otaState,
         ]);
     }
 
@@ -215,5 +218,47 @@ class DashboardController extends Controller
     protected function normalizeNavigationPosition($position): string
     {
         return in_array($position, ['top', 'left', 'right'], true) ? $position : 'top';
+    }
+
+    protected function resolveOtaBannerState(array $settings): array
+    {
+        $ota = data_get($settings, 'updates.ota', []);
+        $latestRelease = trim((string) data_get($ota, 'latest_release', ''));
+        $processedAt = data_get($ota, 'processed_at');
+        $releaseUrl = trim((string) data_get($ota, 'release_url', ''));
+        $currentVersion = trim((string) config('app.version', 'dev'));
+
+        if ($latestRelease !== '' && strcasecmp(ltrim($latestRelease, 'v'), ltrim($currentVersion, 'v')) !== 0) {
+            return [
+                'visible' => true,
+                'variant' => 'warning',
+                'title' => 'Update available',
+                'message' => $latestRelease,
+                'processed_at' => $processedAt,
+                'release_url' => $releaseUrl !== '' ? $releaseUrl : null,
+                'action_label' => 'Update now',
+            ];
+        }
+
+        if ($processedAt) {
+            return [
+                'visible' => true,
+                'variant' => 'success',
+                'title' => 'Last OTA processed',
+                'message' => $processedAt,
+                'release_url' => $releaseUrl !== '' ? $releaseUrl : null,
+                'action_label' => 'View release',
+            ];
+        }
+
+        return [
+            'visible' => false,
+            'variant' => 'neutral',
+            'title' => null,
+            'message' => null,
+            'processed_at' => null,
+            'release_url' => null,
+            'action_label' => null,
+        ];
     }
 }
