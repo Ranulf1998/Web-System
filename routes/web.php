@@ -48,6 +48,7 @@ Route::domain(config('app.domain'))->group(function () {
         Route::post('/super-admin/tenants/{tenant}/subscription/renew', [SuperAdminController::class, 'renewTenantSubscription'])->name('super-admin.tenants.subscription.renew');
         Route::patch('/super-admin/tenants/{tenant}/subscription/plan', [SuperAdminController::class, 'changeTenantSubscriptionPlan'])->name('super-admin.tenants.subscription.plan.update');
         Route::patch('/super-admin/support-tickets/{supportTicket}/status', [SuperAdminController::class, 'updateSupportTicketStatus'])->name('super-admin.support-tickets.status.update');
+        Route::post('/super-admin/updates/apply-latest', [SuperAdminController::class, 'applyLatestUpdate'])->name('super-admin.updates.apply-latest');
         Route::post('/super-admin/central-admins', [SuperAdminController::class, 'storeCentralAdmin'])->name('super-admin.central-admins.store');
         Route::patch('/super-admin/central-admins/{user}/role', [SuperAdminController::class, 'updateCentralAdminRole'])->name('super-admin.central-admins.role.update');
         Route::delete('/super-admin/central-admins/{user}', [SuperAdminController::class, 'destroyCentralAdmin'])->name('super-admin.central-admins.destroy');
@@ -101,6 +102,8 @@ Route::domain('{subdomain}.' . config('app.domain'))
         Route::middleware('auth')->group(function () {
             // Dashboard
             Route::get('/dashboard', [DashboardController::class, 'index'])->name('tenant.dashboard');
+            Route::get('/updates', [DashboardController::class, 'updates'])->name('tenant.updates');
+            Route::post('/updates/apply', [DashboardController::class, 'applyUpdate'])->name('tenant.updates.apply');
             Route::put('/dashboard/layout', [DashboardController::class, 'updateLayout'])->name('tenant.dashboard.layout.update');
             Route::post('/dashboard/layout/reset', [DashboardController::class, 'resetLayout'])->name('tenant.dashboard.layout.reset');
 

@@ -54,7 +54,7 @@
             @else
                 @include('layouts.navigation', ['mobileOnly' => true])
 
-                <div class="sm:flex {{ $navPosition === 'right' ? 'sm:flex-row-reverse' : '' }}">
+                <div class="sm:flex sm:min-h-screen {{ $navPosition === 'right' ? 'sm:flex-row-reverse' : '' }}">
                     @include('layouts.tenant-sidebar', [
                         'sidebarBorderClass' => $navPosition === 'right' ? 'border-l' : 'border-r',
                     ])

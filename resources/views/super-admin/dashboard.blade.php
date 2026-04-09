@@ -316,19 +316,45 @@
                     <h2 class="text-base font-semibold">Support & Updates</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
+                @php
+                    $releases = is_array($releases ?? null) ? $releases : [];
+                    $selectedReleaseTag = old('release_tag', $versionInfo['current_version'] ?? ($versionInfo['latest_version'] ?? ''));
+                @endphp
                 <p class="text-sm text-slate-600">Track deployed app version and latest GitHub release.</p>
                 <p class="mt-3 text-sm text-slate-500">Current: {{ $versionInfo['current_version'] ?? 'dev' }}</p>
+                @if (!empty($versionInfo['current_selected_at']))
+                    <p class="mt-1 text-xs text-slate-500">Selected by admin: {{ \Illuminate\Support\Carbon::parse($versionInfo['current_selected_at'])->format('M j, Y g:i A') }}</p>
+                @endif
                 <p class="mt-1 text-sm text-slate-500">
                     Latest: {{ $versionInfo['latest_version'] ?? 'Not available' }}
                     @if (!empty($versionInfo['latest_url']))
                         <a href="{{ $versionInfo['latest_url'] }}" target="_blank" rel="noopener noreferrer" class="ml-1 text-indigo-600 hover:underline">View release</a>
                     @endif
                 </p>
-                @if (!empty($versionInfo['update_available']))
-                    <span class="mt-3 inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">Update available</span>
-                @else
-                    <span class="mt-3 inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Up to date</span>
-                @endif
+                <div class="mt-3 space-y-3">
+                    @if (!empty($versionInfo['update_available']))
+                        <span class="inline-flex rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">Update available</span>
+                    @else
+                        <span class="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Up to date</span>
+                    @endif
+
+                    @if (count($releases))
+                        <form method="POST" action="{{ route('super-admin.updates.apply-latest') }}" class="space-y-2">
+                            @csrf
+                            <label for="super-admin-release" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Choose version</label>
+                            <select id="super-admin-release" name="release_tag" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+                                @foreach ($releases as $release)
+                                    <option value="{{ $release['tag_name'] }}" @selected((string) $selectedReleaseTag === (string) $release['tag_name'])>
+                                        {{ $release['tag_name'] }}{{ !empty($release['prerelease']) ? ' (pre-release)' : '' }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="rounded-md bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500">
+                                Download and publish selected update
+                            </button>
+                        </form>
+                    @endif
+                </div>
             </div>
 
             <div id="support-tickets" class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm md:col-span-2 xl:col-span-3">

@@ -9,6 +9,82 @@ use Illuminate\Support\Facades\Log;
 
 class GitHubReleaseService
 {
+    public function releases(int $limit = 10): array
+    {
+        $repo = $this->normalizeRepo((string) config('version.github_repo'));
+        $current = trim((string) config('app.version', 'dev'));
+        $current = $current !== '' ? $current : 'dev';
+
+        if ($repo === '') {
+            return [];
+        }
+
+        $cacheKey = $this->cacheKey($repo) . '_list_' . max($limit, 1);
+
+        return Cache::store((string) config('version.cache_store', 'file'))->remember(
+            $cacheKey,
+            now()->addMinutes((int) config('version.cache_minutes', 15)),
+            function () use ($repo, $current, $limit) {
+                $verify = (bool) config('version.verify_ssl', app()->isProduction());
+                $request = Http::acceptJson()->timeout(10)->withOptions(['verify' => $verify]);
+
+                $token = trim((string) config('version.github_token'));
+                if ($token !== '') {
+                    $request = $request->withToken($token);
+                }
+
+                try {
+                    $response = $request->get("https://api.github.com/repos/{$repo}/releases", [
+                        'per_page' => max($limit, 1),
+                        'exclude_prereleases' => false,
+                    ]);
+                } catch (\Throwable $exception) {
+                    Log::warning('Unable to fetch GitHub release list.', [
+                        'repo' => $repo,
+                        'error' => $exception->getMessage(),
+                    ]);
+
+                    return [];
+                }
+
+                if (! $response->successful()) {
+                    return [];
+                }
+
+                return collect($response->json() ?? [])
+                    ->take(max($limit, 1))
+                    ->map(function (array $release) use ($current) {
+                        $tag = trim((string) ($release['tag_name'] ?? ''));
+                        $normalizedTag = $this->normalizeVersion($tag);
+                        $normalizedCurrent = $this->normalizeVersion($current);
+
+                        $updateAvailable = false;
+                        if ($normalizedTag !== '' && $normalizedCurrent !== '') {
+                            if ($this->isSemanticVersion($normalizedTag) && $this->isSemanticVersion($normalizedCurrent)) {
+                                $updateAvailable = version_compare($normalizedTag, $normalizedCurrent, '>');
+                            } else {
+                                $updateAvailable = $normalizedTag !== $normalizedCurrent;
+                            }
+                        }
+
+                        return [
+                            'name' => trim((string) ($release['name'] ?? '')) ?: $tag,
+                            'tag_name' => $tag,
+                            'html_url' => $release['html_url'] ?? null,
+                            'zipball_url' => $release['zipball_url'] ?? null,
+                            'published_at' => $release['published_at'] ?? null,
+                            'prerelease' => (bool) ($release['prerelease'] ?? false),
+                            'draft' => (bool) ($release['draft'] ?? false),
+                            'update_available' => $updateAvailable,
+                        ];
+                    })
+                    ->filter(fn (array $release) => ! empty($release['tag_name']))
+                    ->values()
+                    ->all();
+            }
+        );
+    }
+
     public function latest(): array
     {
         $repo = $this->normalizeRepo((string) config('version.github_repo'));
@@ -21,11 +97,12 @@ class GitHubReleaseService
                 'current_version' => $current,
                 'latest_version' => null,
                 'latest_url' => null,
+                'latest_download_url' => null,
                 'update_available' => false,
             ];
         }
 
-        return Cache::remember(
+        return Cache::store((string) config('version.cache_store', 'file'))->remember(
             $this->cacheKey($repo),
             now()->addMinutes((int) config('version.cache_minutes', 15)),
             function () use ($repo, $current, $normalizedCurrent) {
@@ -49,6 +126,7 @@ class GitHubReleaseService
                         'current_version' => $current,
                         'latest_version' => null,
                         'latest_url' => null,
+                        'latest_download_url' => null,
                         'update_available' => false,
                     ];
                 }
@@ -58,6 +136,7 @@ class GitHubReleaseService
                         'current_version' => $current,
                         'latest_version' => null,
                         'latest_url' => null,
+                        'latest_download_url' => null,
                         'update_available' => false,
                     ];
                 }
@@ -79,6 +158,7 @@ class GitHubReleaseService
                     'current_version' => $current,
                     'latest_version' => $latest !== '' ? $latest : null,
                     'latest_url' => $json['html_url'] ?? null,
+                    'latest_download_url' => $json['zipball_url'] ?? null,
                     'update_available' => $updateAvailable,
                 ];
             }

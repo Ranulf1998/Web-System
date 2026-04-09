@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\GitHubReleaseService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\View\View;
 use Illuminate\Support\Str;
 
 class DashboardController extends Controller
@@ -88,6 +91,74 @@ class DashboardController extends Controller
             'custom_sections' => [],
             'navigation_position' => $navigationPosition,
         ]);
+    }
+
+    public function updates(GitHubReleaseService $releaseService): View
+    {
+        abort_unless(Auth::user()?->hasRole('Owner') ?? false, 403, 'Only the shop owner can access updates.');
+
+        $tenant = tenant();
+        $versionInfo = $releaseService->latest();
+        $releases = $releaseService->releases(12);
+        $tenantCurrentVersion = trim((string) data_get($tenant->settings, 'updates.ota.current_version', ''));
+
+        if ($tenantCurrentVersion !== '') {
+            $versionInfo['current_version'] = $tenantCurrentVersion;
+
+            if (! empty($versionInfo['latest_version'])) {
+                $versionInfo['update_available'] = strcasecmp(
+                    ltrim((string) $versionInfo['latest_version'], 'v'),
+                    ltrim($tenantCurrentVersion, 'v')
+                ) !== 0;
+            }
+        }
+
+        return view('updates.index', [
+            'tenant' => $tenant,
+            'versionInfo' => $versionInfo,
+            'releases' => $releases,
+            'otaInfo' => data_get($tenant->settings, 'updates.ota', []),
+        ]);
+    }
+
+    public function applyUpdate(Request $request, GitHubReleaseService $releaseService): RedirectResponse
+    {
+        abort_unless(Auth::user()?->hasRole('Owner') ?? false, 403, 'Only the shop owner can apply updates.');
+
+        $validated = $request->validate([
+            'release_tag' => ['required', 'string', 'max:50'],
+            'release_name' => ['nullable', 'string', 'max:120'],
+            'release_url' => ['nullable', 'url', 'max:500'],
+        ]);
+
+        $selectedTag = trim((string) $validated['release_tag']);
+        $release = collect($releaseService->releases(30))->first(function (array $candidate) use ($selectedTag) {
+            return strcasecmp((string) ($candidate['tag_name'] ?? ''), $selectedTag) === 0;
+        });
+
+        if (! is_array($release)) {
+            return redirect()
+                ->route('tenant.updates')
+                ->withErrors(['release_tag' => 'Selected release was not found. Refresh the page and try again.']);
+        }
+
+        $tenant = tenant();
+        $settings = is_array($tenant->settings) ? $tenant->settings : [];
+
+        data_set($settings, 'updates.ota.latest_release', (string) $release['tag_name']);
+        data_set($settings, 'updates.ota.current_version', (string) $release['tag_name']);
+        data_set($settings, 'updates.ota.release_url', (string) ($release['html_url'] ?? ($validated['release_url'] ?? '')));
+        data_set($settings, 'updates.ota.status', 'applied');
+        data_set($settings, 'updates.ota.applied_at', now()->toIso8601String());
+        data_set($settings, 'updates.ota.applied_by', Auth::id());
+        data_set($settings, 'updates.ota.applied_by_name', (string) (Auth::user()?->name ?? 'Owner'));
+
+        $tenant->settings = $settings;
+        $tenant->save();
+
+        return redirect()
+            ->route('tenant.updates')
+            ->with('status', 'Update applied: ' . (string) $release['tag_name']);
     }
 
     protected function availableWidgets(): array
@@ -226,7 +297,7 @@ class DashboardController extends Controller
         $latestRelease = trim((string) data_get($ota, 'latest_release', ''));
         $processedAt = data_get($ota, 'processed_at');
         $releaseUrl = trim((string) data_get($ota, 'release_url', ''));
-        $currentVersion = trim((string) config('app.version', 'dev'));
+        $currentVersion = trim((string) data_get($ota, 'current_version', config('app.version', 'dev')));
 
         if ($latestRelease !== '' && strcasecmp(ltrim($latestRelease, 'v'), ltrim($currentVersion, 'v')) !== 0) {
             return [

@@ -88,13 +88,20 @@
         'active' => request()->routeIs('support-tickets.*'),
         'show' => $canManageUsers && Route::has('support-tickets.create'),
     ];
+
+    $links[] = [
+        'label' => __('Updates'),
+        'href' => Route::has('tenant.updates') ? route('tenant.updates') : '#',
+        'active' => request()->routeIs('tenant.updates'),
+        'show' => $isOwner && Route::has('tenant.updates'),
+    ];
 @endphp
 
 @php
     $sidebarBorderClass = $sidebarBorderClass ?? 'border-r';
 @endphp
 
-<aside class="hidden w-64 shrink-0 {{ $sidebarBorderClass }} border-slate-200 bg-white sm:flex sm:flex-col">
+<aside class="hidden w-64 shrink-0 {{ $sidebarBorderClass }} border-slate-200 bg-white sm:flex sm:min-h-screen sm:flex-col">
     <div class="flex h-16 items-center border-b border-slate-200 px-4">
         <a href="{{ route('tenant.dashboard') }}" class="inline-flex items-center gap-3">
             @if ($logoPath)

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\ProcessTenantOtaUpdateJob;
 use App\Mail\TenantApprovedMail;
 use App\Models\Order;
 use App\Models\Permission;
@@ -14,6 +15,7 @@ use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -391,6 +393,21 @@ class SuperAdminController extends Controller
             ]);
 
         $versionInfo = $releaseService->latest();
+        $releaseList = $releaseService->releases(12);
+        $cacheStore = Cache::store((string) config('version.cache_store', 'file'));
+        $selectedRelease = $cacheStore->get('super_admin.updates.current_release');
+
+        if (is_array($selectedRelease) && ! empty($selectedRelease['tag_name'])) {
+            $versionInfo['current_version'] = (string) $selectedRelease['tag_name'];
+            $versionInfo['current_url'] = $selectedRelease['html_url'] ?? null;
+            $versionInfo['current_selected_at'] = $selectedRelease['selected_at'] ?? null;
+        }
+
+        $currentVersion = trim((string) ($versionInfo['current_version'] ?? ''));
+        $latestVersion = trim((string) ($versionInfo['latest_version'] ?? ''));
+        $versionInfo['update_available'] = $currentVersion !== '' && $latestVersion !== ''
+            ? strcasecmp(ltrim($latestVersion, 'v'), ltrim($currentVersion, 'v')) !== 0
+            : false;
 
         return view('super-admin.dashboard', [
             'stats' => $stats,
@@ -402,7 +419,75 @@ class SuperAdminController extends Controller
             'centralRoleOptions' => $this->centralRoleOptions(),
             'supportTickets' => $supportTickets,
             'versionInfo' => $versionInfo,
+            'releases' => $releaseList,
         ]);
+    }
+
+    public function applyLatestUpdate(Request $request, GitHubReleaseService $releaseService): RedirectResponse
+    {
+        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
+
+        $validated = $request->validate([
+            'release_tag' => ['nullable', 'string', 'max:50'],
+        ]);
+
+        $requestedTag = trim((string) ($validated['release_tag'] ?? ''));
+        $releases = $releaseService->releases(30);
+        $selectedRelease = null;
+
+        if ($requestedTag !== '') {
+            foreach ($releases as $release) {
+                if (strcasecmp((string) ($release['tag_name'] ?? ''), $requestedTag) === 0) {
+                    $selectedRelease = $release;
+                    break;
+                }
+            }
+        }
+
+        if (! is_array($selectedRelease)) {
+            $latest = $releaseService->latest();
+            $latestVersion = trim((string) ($latest['latest_version'] ?? ''));
+
+            if ($latestVersion === '') {
+                return redirect()->route('super-admin.dashboard')->withErrors([
+                    'tenant_approval' => 'No latest release found on GitHub. Please try again later.',
+                ]);
+            }
+
+            $selectedRelease = [
+                'tag_name' => $latestVersion,
+                'name' => $latestVersion,
+                'html_url' => $latest['latest_url'] ?? null,
+                'zipball_url' => $latest['latest_download_url'] ?? null,
+            ];
+        }
+
+        $selectedTag = trim((string) ($selectedRelease['tag_name'] ?? ''));
+
+        if ($selectedTag === '') {
+            return redirect()->route('super-admin.dashboard')->withErrors([
+                'tenant_approval' => 'Selected release was not found. Please refresh and try again.',
+            ]);
+        }
+
+        Cache::store((string) config('version.cache_store', 'file'))->forever('super_admin.updates.current_release', [
+            'tag_name' => $selectedTag,
+            'name' => (string) ($selectedRelease['name'] ?? $selectedTag),
+            'html_url' => $selectedRelease['html_url'] ?? null,
+            'zipball_url' => $selectedRelease['zipball_url'] ?? null,
+            'selected_at' => now()->toIso8601String(),
+            'selected_by' => auth()->id(),
+        ]);
+
+        ProcessTenantOtaUpdateJob::dispatch(
+            releaseTag: $selectedTag,
+            releaseUrl: $selectedRelease['html_url'] ?? null,
+            applyImmediately: false,
+        );
+
+        return redirect()
+            ->route('super-admin.dashboard')
+            ->with('status', 'Update release ' . $selectedTag . ' published to tenants. Tenants can patch when ready.');
     }
 
     public function storeCentralAdmin(Request $request): RedirectResponse

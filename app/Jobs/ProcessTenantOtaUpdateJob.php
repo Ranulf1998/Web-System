@@ -22,7 +22,8 @@ class ProcessTenantOtaUpdateJob implements ShouldQueue
 
     public function __construct(
         public readonly string $releaseTag,
-        public readonly ?string $releaseUrl = null
+        public readonly ?string $releaseUrl = null,
+        public readonly bool $applyImmediately = false
     ) {
     }
 
@@ -35,8 +36,12 @@ class ProcessTenantOtaUpdateJob implements ShouldQueue
         });
     }
 
-    private function processTenant(Tenant $tenant): void
+    private function processTenant(mixed $tenant): void
     {
+        if (! $tenant instanceof Tenant) {
+            return;
+        }
+
         $settings = is_array($tenant->settings) ? $tenant->settings : [];
         $registrationStatus = strtolower(trim((string) data_get($settings, 'status.registration', 'approved')));
 
@@ -51,8 +56,14 @@ class ProcessTenantOtaUpdateJob implements ShouldQueue
 
         data_set($settings, 'updates.ota.latest_release', $this->releaseTag);
         data_set($settings, 'updates.ota.release_url', $this->releaseUrl);
-        data_set($settings, 'updates.ota.status', 'processed');
+        data_set($settings, 'updates.ota.status', $this->applyImmediately ? 'applied' : 'processed');
         data_set($settings, 'updates.ota.processed_at', now()->toIso8601String());
+
+        if ($this->applyImmediately) {
+            data_set($settings, 'updates.ota.current_version', $this->releaseTag);
+            data_set($settings, 'updates.ota.applied_at', now()->toIso8601String());
+            data_set($settings, 'updates.ota.applied_by', 'super-admin');
+        }
 
         $ownerName = trim((string) data_get($settings, 'onboarding.owner.name', ''));
         $ownerEmail = trim((string) data_get($settings, 'onboarding.owner.email', ''));
