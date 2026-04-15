@@ -223,7 +223,7 @@
                 @foreach ($orderedWidgets as $widget)
                     @if ($widget === 'welcome')
                         <div class="dashboard-panel overflow-hidden p-6">
-                            <div class="text-slate-700">{{ __('Welcome to your coffee shop management dashboard!') }}</div>
+                            <div class="text-black">{{ __('Welcome to your coffee shop management dashboard!') }}</div>
                         </div>
                     @endif
 

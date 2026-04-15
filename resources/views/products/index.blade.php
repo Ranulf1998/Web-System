@@ -49,6 +49,7 @@
                     <table class="min-w-full divide-y divide-gray-200">
                         <thead>
                             <tr>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">Image</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">Name</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">Price</th>
                                 <th class="px-6 py-3 bg-gray-50 text-left text-xs leading-4 font-medium text-gray-500 uppercase tracking-wider">Stock</th>
@@ -58,6 +59,18 @@
                         <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($products as $product)
                             <tr>
+                                <td class="px-6 py-4 whitespace-no-wrap">
+                                    @if (!empty($product->image_path))
+                                        <img
+                                            src="{{ route('tenant.files.show', ['path' => $product->image_path]) }}"
+                                            alt="{{ $product->name }}"
+                                            class="h-12 w-12 rounded-md border border-gray-200 object-cover"
+                                            loading="lazy"
+                                        >
+                                    @else
+                                        <span class="text-xs text-gray-400">No image</span>
+                                    @endif
+                                </td>
                                 <td class="px-6 py-4 whitespace-no-wrap">{{ $product->name }}</td>
                                 <td class="px-6 py-4 whitespace-no-wrap">₱{{ number_format($product->price, 2) }}</td>
                                 <td class="px-6 py-4 whitespace-no-wrap">{{ $product->stock }}</td>

@@ -3,7 +3,27 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light dark">
     <title>Super Admin Dashboard - BrewCloud</title>
+
+    <script>
+        (function () {
+            const storageKey = 'super-admin-theme';
+
+            try {
+                const storedTheme = localStorage.getItem(storageKey);
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+                if (storedTheme === 'dark' || (!storedTheme && prefersDark)) {
+                    document.documentElement.classList.add('dark');
+                }
+            } catch (_) {
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+                    document.documentElement.classList.add('dark');
+                }
+            }
+        })();
+    </script>
 
     @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
         @vite(['resources/css/app.css', 'resources/js/app.js'])
@@ -11,16 +31,99 @@
 
     <style>
         .super-admin-theme {
-            background-color: var(--brand-background);
+            --super-admin-page-bg: #f4f7fb;
+            --super-admin-surface: rgba(255, 255, 255, 0.92);
+            --super-admin-surface-strong: #ffffff;
+            --super-admin-surface-muted: #f8fafc;
+            --super-admin-border: rgba(203, 213, 225, 0.9);
+            --super-admin-text: #0f172a;
+            --super-admin-text-strong: #020617;
+            --super-admin-text-muted: #475569;
+            --super-admin-header-bg: rgba(255, 255, 255, 0.82);
+            --super-admin-dialog-backdrop: rgba(15, 23, 42, 0.5);
+            background-color: var(--super-admin-page-bg) !important;
+            color: var(--super-admin-text) !important;
+            color-scheme: light;
         }
 
-        .super-admin-theme [class*="bg-zinc-100"] {
-            background-color: var(--brand-background) !important;
+        html.dark .super-admin-theme {
+            --super-admin-page-bg: #020617;
+            --super-admin-surface: rgba(15, 23, 42, 0.92);
+            --super-admin-surface-strong: #0f172a;
+            --super-admin-surface-muted: #111827;
+            --super-admin-border: rgba(51, 65, 85, 0.95);
+            --super-admin-text: #dbe4f0;
+            --super-admin-text-strong: #f8fafc;
+            --super-admin-text-muted: #94a3b8;
+            --super-admin-header-bg: rgba(15, 23, 42, 0.88);
+            --super-admin-dialog-backdrop: rgba(2, 6, 23, 0.72);
+            background-color: var(--super-admin-page-bg) !important;
+            color: var(--super-admin-text) !important;
+            color-scheme: dark;
         }
 
-        .super-admin-theme [class*="bg-indigo-600"],
+        html.dark .super-admin-theme [class*="bg-white"],
+        html.dark .super-admin-theme [class*="bg-zinc-50"],
+        html.dark .super-admin-theme [class*="bg-slate-50"] {
+            background-color: var(--super-admin-surface) !important;
+        }
+
+        html.dark .super-admin-theme [class*="bg-zinc-100"],
+        html.dark .super-admin-theme [class*="bg-slate-100"],
+        html.dark .super-admin-theme [class*="bg-zinc-200"],
+        html.dark .super-admin-theme [class*="bg-slate-200"],
+        html.dark .super-admin-theme [class*="bg-slate-50"] {
+            background-color: var(--super-admin-surface-muted) !important;
+        }
+
+        html.dark .super-admin-theme [class*="bg-white/70"],
+        html.dark .super-admin-theme [class*="bg-white/80"],
+        html.dark .super-admin-theme [class*="bg-white/85"],
+        html.dark .super-admin-theme [class*="bg-white/90"] {
+            background-color: var(--super-admin-header-bg) !important;
+        }
+
+        html.dark .super-admin-theme [class*="bg-indigo-600"],
         .super-admin-theme [class*="bg-[color:var(--brand-primary)]"] {
             background-color: var(--brand-primary) !important;
+        }
+
+        html.dark .super-admin-theme [class*="text-zinc-950"],
+        html.dark .super-admin-theme [class*="text-zinc-900"],
+        html.dark .super-admin-theme [class*="text-zinc-800"],
+        html.dark .super-admin-theme [class*="text-slate-900"],
+        html.dark .super-admin-theme [class*="text-slate-800"] {
+            color: var(--super-admin-text-strong) !important;
+        }
+
+        html.dark .super-admin-theme [class*="text-zinc-700"],
+        html.dark .super-admin-theme [class*="text-zinc-600"],
+        html.dark .super-admin-theme [class*="text-zinc-500"],
+        html.dark .super-admin-theme [class*="text-zinc-400"],
+        html.dark .super-admin-theme [class*="text-slate-700"],
+        html.dark .super-admin-theme [class*="text-slate-600"],
+        html.dark .super-admin-theme [class*="text-slate-500"],
+        html.dark .super-admin-theme [class*="text-slate-400"] {
+            color: var(--super-admin-text-muted) !important;
+        }
+
+        html.dark .super-admin-theme [class*="border-zinc-200"],
+        html.dark .super-admin-theme [class*="border-zinc-300"],
+        html.dark .super-admin-theme [class*="border-slate-200"],
+        html.dark .super-admin-theme [class*="border-slate-300"],
+        html.dark .super-admin-theme [class*="border-white"] {
+            border-color: var(--super-admin-border) !important;
+        }
+
+        html.dark .super-admin-theme [class*="hover:bg-zinc-50"]:hover,
+        html.dark .super-admin-theme [class*="hover:bg-zinc-100"]:hover,
+        html.dark .super-admin-theme [class*="hover:bg-slate-50"]:hover,
+        html.dark .super-admin-theme [class*="hover:bg-white"]:hover {
+            background-color: color-mix(in srgb, var(--super-admin-surface-strong) 10%, var(--super-admin-surface)) !important;
+        }
+
+        html.dark .super-admin-theme dialog::backdrop {
+            background: var(--super-admin-dialog-backdrop);
         }
 
         .super-admin-theme [class*="text-indigo-600"],
@@ -79,15 +182,24 @@
             background-color: var(--brand-primary) !important;
             opacity: 1 !important;
         }
+
+        html.dark .super-admin-theme [class*="bg-indigo-50"],
+        html.dark .super-admin-theme [class*="bg-indigo-500/10"] {
+            background-color: color-mix(in srgb, var(--brand-primary) 16%, var(--super-admin-surface)) !important;
+        }
+
+        html.dark .super-admin-theme .super-admin-theme-header {
+            background-color: var(--super-admin-header-bg) !important;
+        }
     </style>
 </head>
-<body class="super-admin-theme min-h-screen bg-zinc-100 text-zinc-900 antialiased">
+<body class="super-admin-theme min-h-screen bg-zinc-100 text-zinc-900 antialiased transition-colors duration-300">
     <div class="pointer-events-none fixed inset-0 overflow-hidden">
         <div class="absolute -top-24 right-[-8rem] h-72 w-72 rounded-full bg-indigo-500/10 blur-3xl"></div>
         <div class="absolute left-[-7rem] top-40 h-80 w-80 rounded-full bg-cyan-500/10 blur-3xl"></div>
     </div>
 
-    <header class="sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur-xl">
+    <header class="super-admin-theme-header sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <div class="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
             <div class="flex items-center gap-4">
                 <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--brand-primary)] text-sm font-semibold text-white shadow-lg shadow-[color:var(--brand-primary)]/20">
@@ -98,13 +210,19 @@
                     <h1 class="text-xl font-semibold tracking-tight text-zinc-950">Super Admin Dashboard</h1>
                 </div>
             </div>
-            <form method="POST" action="{{ route('super-admin.logout') }}" data-super-admin-logout-form>
-                @csrf
-                <button type="button" data-open-super-admin-logout-modal class="inline-flex items-center gap-2 rounded-full border border-transparent bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-95">
-                    <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                    Logout
+            <div class="flex items-center gap-3">
+                <button type="button" data-super-admin-theme-toggle aria-pressed="false" class="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white/70 px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50">
+                    <span class="h-2 w-2 rounded-full bg-amber-400"></span>
+                    <span data-super-admin-theme-label>Dark mode</span>
                 </button>
-            </form>
+                <form method="POST" action="{{ route('super-admin.logout') }}" data-super-admin-logout-form>
+                    @csrf
+                    <button type="button" data-open-super-admin-logout-modal class="inline-flex items-center gap-2 rounded-full border border-transparent bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:opacity-95">
+                        <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                        Logout
+                    </button>
+                </form>
+            </div>
         </div>
     </header>
 
@@ -1228,6 +1346,44 @@
     </dialog>
 
     <script>
+        (function () {
+            const storageKey = 'super-admin-theme';
+            const root = document.documentElement;
+            const toggleButton = document.querySelector('[data-super-admin-theme-toggle]');
+            const themeLabel = document.querySelector('[data-super-admin-theme-label]');
+
+            const setTheme = (theme, shouldPersist = true) => {
+                const nextTheme = theme === 'dark' ? 'dark' : 'light';
+
+                root.classList.toggle('dark', nextTheme === 'dark');
+
+                if (shouldPersist) {
+                    try {
+                        localStorage.setItem(storageKey, nextTheme);
+                    } catch (_) {
+                        // Ignore storage errors and keep the current theme in memory.
+                    }
+                }
+
+                if (toggleButton) {
+                    toggleButton.setAttribute('aria-pressed', nextTheme === 'dark' ? 'true' : 'false');
+                }
+
+                if (themeLabel) {
+                    themeLabel.textContent = nextTheme === 'dark' ? 'Light mode' : 'Dark mode';
+                }
+            };
+
+            const currentTheme = root.classList.contains('dark') ? 'dark' : 'light';
+            setTheme(currentTheme, false);
+
+            if (toggleButton) {
+                toggleButton.addEventListener('click', function () {
+                    setTheme(root.classList.contains('dark') ? 'light' : 'dark');
+                });
+            }
+        })();
+
         (function () {
             const supportModal = document.getElementById('support-tickets-modal');
             const supportOpenButton = document.querySelector('[data-open-support-tickets]');

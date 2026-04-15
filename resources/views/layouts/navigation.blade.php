@@ -118,6 +118,11 @@
                             {{ __('Support') }}
                         </x-nav-link>
                     @endif
+                    @if ($isOwner && Route::has('tenant.updates'))
+                        <x-nav-link :href="route('tenant.updates')" :active="request()->routeIs('tenant.updates')">
+                            {{ __('Updates') }}
+                        </x-nav-link>
+                    @endif
                 </div>
             </div>
 
@@ -323,6 +328,11 @@
             @if (($isOwner || in_array('manage users', $permissionNames, true)) && Route::has('support-tickets.create'))
                 <x-responsive-nav-link :href="route('support-tickets.create')" :active="request()->routeIs('support-tickets.*')">
                     {{ __('Support') }}
+                </x-responsive-nav-link>
+            @endif
+            @if ($isOwner && Route::has('tenant.updates'))
+                <x-responsive-nav-link :href="route('tenant.updates')" :active="request()->routeIs('tenant.updates')">
+                    {{ __('Updates') }}
                 </x-responsive-nav-link>
             @endif
         </div>
