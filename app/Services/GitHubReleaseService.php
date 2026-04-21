@@ -105,23 +105,10 @@ class GitHubReleaseService
         return Cache::store((string) config('version.cache_store', 'file'))->remember(
             $this->cacheKey($repo),
             now()->addMinutes((int) config('version.cache_minutes', 15)),
-            function () use ($repo, $current, $normalizedCurrent) {
-                $verify = (bool) config('version.verify_ssl', app()->isProduction());
-                $request = Http::acceptJson()->timeout(10)->withOptions(['verify' => $verify]);
+            function () use ($current, $normalizedCurrent) {
+                $latestRelease = $this->resolveLatestRelease($this->releases(30));
 
-                $token = trim((string) config('version.github_token'));
-                if ($token !== '') {
-                    $request = $request->withToken($token);
-                }
-
-                try {
-                    $response = $request->get("https://api.github.com/repos/{$repo}/releases/latest");
-                } catch (\Throwable $exception) {
-                    Log::warning('Unable to fetch latest GitHub release.', [
-                        'repo' => $repo,
-                        'error' => $exception->getMessage(),
-                    ]);
-
+                if (! is_array($latestRelease)) {
                     return [
                         'current_version' => $current,
                         'latest_version' => null,
@@ -131,18 +118,7 @@ class GitHubReleaseService
                     ];
                 }
 
-                if (! $response->successful()) {
-                    return [
-                        'current_version' => $current,
-                        'latest_version' => null,
-                        'latest_url' => null,
-                        'latest_download_url' => null,
-                        'update_available' => false,
-                    ];
-                }
-
-                $json = $response->json();
-                $latest = trim((string) ($json['tag_name'] ?? ''));
+                $latest = trim((string) ($latestRelease['tag_name'] ?? ''));
                 $normalizedLatest = $this->normalizeVersion($latest);
 
                 $updateAvailable = false;
@@ -157,8 +133,8 @@ class GitHubReleaseService
                 return [
                     'current_version' => $current,
                     'latest_version' => $latest !== '' ? $latest : null,
-                    'latest_url' => $json['html_url'] ?? null,
-                    'latest_download_url' => $json['zipball_url'] ?? null,
+                    'latest_url' => $latestRelease['html_url'] ?? null,
+                    'latest_download_url' => $latestRelease['zipball_url'] ?? null,
                     'update_available' => $updateAvailable,
                 ];
             }
@@ -207,5 +183,22 @@ class GitHubReleaseService
     protected function isSemanticVersion(string $value): bool
     {
         return preg_match('/^\d+(?:\.\d+){1,3}(?:[-+][0-9a-z.-]+)?$/i', $value) === 1;
+    }
+
+    protected function resolveLatestRelease(array $releases): ?array
+    {
+        $releases = array_values(array_filter($releases, fn ($release) => is_array($release)));
+
+        if ($releases === []) {
+            return null;
+        }
+
+        foreach ($releases as $release) {
+            if (! empty($release['tag_name']) && empty($release['draft']) && empty($release['prerelease'])) {
+                return $release;
+            }
+        }
+
+        return $releases[0] ?? null;
     }
 }

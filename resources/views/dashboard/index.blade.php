@@ -285,10 +285,10 @@
 
                     @if ($widget === 'plan_summary' && $isOwner)
                         <div class="dashboard-panel overflow-hidden p-6">
-                            <div class="dashboard-section-title">Plan Summary</div>
-                            <div class="mt-2 text-slate-700">Current plan: {{ $planNameWithBandwidth }}</div>
+                            <div class="text-sm font-semibold uppercase tracking-wide" style="color: #000000;">Plan Summary</div>
+                            <div class="mt-2" style="color: #000000;">Current plan: {{ $planNameWithBandwidth }}</div>
                             @if ($planPrice)
-                                <div class="text-sm text-slate-500">₱{{ number_format($planPrice) }} / month</div>
+                                <div class="text-sm" style="color: #000000;">₱{{ number_format($planPrice) }} / month</div>
                             @endif
                             <div class="mt-4">
                                 <button type="button" class="modal-close" @click="planOpen = true">Plan overview</button>

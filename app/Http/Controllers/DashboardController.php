@@ -132,6 +132,20 @@ class DashboardController extends Controller
         ]);
 
         $selectedTag = trim((string) $validated['release_tag']);
+        $latestVersion = trim((string) ($releaseService->latest()['latest_version'] ?? ''));
+
+        if ($latestVersion === '') {
+            return redirect()
+                ->route('tenant.updates')
+                ->withErrors(['release_tag' => 'No latest release is available right now. Please try again later.']);
+        }
+
+        if (strcasecmp(ltrim($selectedTag, 'v'), ltrim($latestVersion, 'v')) !== 0) {
+            return redirect()
+                ->route('tenant.updates')
+                ->withErrors(['release_tag' => 'Only the latest release can be applied. Please select ' . $latestVersion . '.']);
+        }
+
         $release = collect($releaseService->releases(30))->first(function (array $candidate) use ($selectedTag) {
             return strcasecmp((string) ($candidate['tag_name'] ?? ''), $selectedTag) === 0;
         });

@@ -146,6 +146,32 @@
             background-color: color-mix(in srgb, var(--brand-primary) 88%, black) !important;
         }
 
+        .super-admin-theme select {
+            background-color: #ffffff;
+            color: #0f172a;
+            border-color: rgba(148, 163, 184, 0.55);
+        }
+
+        .super-admin-theme select option {
+            background-color: #ffffff;
+            color: #0f172a;
+        }
+
+        html.dark .super-admin-theme select {
+            background-color: var(--super-admin-surface-strong) !important;
+            color: var(--super-admin-text-strong) !important;
+            border-color: var(--super-admin-border) !important;
+        }
+
+        html.dark .super-admin-theme select option {
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        html.dark .super-admin-theme .super-admin-version-select {
+            color: #f8fafc !important;
+        }
+
         .super-admin-secondary-button {
             display: inline-flex;
             align-items: center;
@@ -431,7 +457,7 @@
 
             <div class="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
                 <div class="mb-2 flex items-center justify-between">
-                    <h2 class="text-base font-semibold">Support & Updates</h2>
+                    <h2 class="text-base font-semibold">Updates</h2>
                     <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">Live</span>
                 </div>
                 @php
@@ -472,7 +498,7 @@
                             @csrf
                             <input type="hidden" name="publish_selected" value="1">
                             <label for="super-admin-release" class="block text-xs font-semibold uppercase tracking-wide text-slate-500">Choose version</label>
-                            <select id="super-admin-release" name="release_tag" class="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
+                            <select id="super-admin-release" name="release_tag" class="super-admin-version-select w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-indigo-500 focus:ring-indigo-500">
                                 @foreach ($releases as $release)
                                     <option value="{{ $release['tag_name'] }}" @selected((string) $selectedReleaseTag === (string) $release['tag_name'])>
                                         {{ $release['tag_name'] }}{{ !empty($release['prerelease']) ? ' (pre-release)' : '' }}
@@ -480,7 +506,7 @@
                                 @endforeach
                             </select>
                             <button type="submit" class="rounded-md bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500">
-                                Download and publish selected update
+                                Publish selected update
                             </button>
                         </form>
                     @endif
@@ -1050,7 +1076,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <button type="submit" data-subscription-plan-submit disabled class="rounded-md border border-amber-300 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50">Change Plan for Selected Tenant</button>
+                            <button type="submit" data-subscription-plan-submit disabled class="rounded-md border border-amber-300 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white">Change Plan for Selected Tenant</button>
                         </form>
                     </div>
                 </div>

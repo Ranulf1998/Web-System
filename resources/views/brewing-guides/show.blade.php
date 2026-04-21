@@ -42,7 +42,7 @@
                 <div class="p-6">
                     @if ($brewingGuide->description)
                         <div class="mb-6">
-                            <p class="text-slate-700">{{ $brewingGuide->description }}</p>
+                            <p class="text-black">{{ $brewingGuide->description }}</p>
                         </div>
                     @endif
 
@@ -64,7 +64,7 @@
                     @if (!empty($brewingGuide->ingredients))
                         <div class="mb-6">
                             <div class="dashboard-section-title mb-3">Ingredients</div>
-                            <ul class="list-disc pl-5 text-sm text-slate-600">
+                            <ul class="list-disc pl-5 text-sm text-black">
                                 @foreach ($brewingGuide->ingredients as $ingredient)
                                     <li>{{ $ingredient }}</li>
                                 @endforeach
@@ -81,7 +81,7 @@
                                         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color:var(--brand-primary)] text-xs font-semibold text-white">
                                             {{ $index + 1 }}
                                         </span>
-                                        <span class="flex-1 text-sm text-slate-700">{{ $step }}</span>
+                                        <span class="flex-1 text-sm text-black">{{ $step }}</span>
                                     </li>
                                 @endforeach
                             </ol>

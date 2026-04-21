@@ -19,7 +19,7 @@ class SupportTicketController extends Controller
             ->where('tenant_id', (int) auth()->user()->tenant_id)
             ->latest()
             ->limit(20)
-            ->get(['id', 'subject', 'status', 'created_at', 'resolved_at']);
+            ->get();
 
         return view('support-tickets.create', [
             'tickets' => $tickets,

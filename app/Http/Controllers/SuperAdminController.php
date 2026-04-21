@@ -433,28 +433,32 @@ class SuperAdminController extends Controller
         ]);
 
         $requestedTag = trim((string) ($validated['release_tag'] ?? ''));
+        $latest = $releaseService->latest();
+        $latestVersion = trim((string) ($latest['latest_version'] ?? ''));
+
+        if ($latestVersion === '') {
+            return redirect()->route('super-admin.dashboard')->withErrors([
+                'tenant_approval' => 'No latest release found on GitHub. Please try again later.',
+            ]);
+        }
+
+        if ($requestedTag !== '' && strcasecmp(ltrim($requestedTag, 'v'), ltrim($latestVersion, 'v')) !== 0) {
+            return redirect()->route('super-admin.dashboard')->withErrors([
+                'tenant_approval' => 'Only the latest release can be published. Please use ' . $latestVersion . '.',
+            ]);
+        }
+
         $releases = $releaseService->releases(30);
         $selectedRelease = null;
 
-        if ($requestedTag !== '') {
-            foreach ($releases as $release) {
-                if (strcasecmp((string) ($release['tag_name'] ?? ''), $requestedTag) === 0) {
-                    $selectedRelease = $release;
-                    break;
-                }
+        foreach ($releases as $release) {
+            if (strcasecmp((string) ($release['tag_name'] ?? ''), $latestVersion) === 0) {
+                $selectedRelease = $release;
+                break;
             }
         }
 
         if (! is_array($selectedRelease)) {
-            $latest = $releaseService->latest();
-            $latestVersion = trim((string) ($latest['latest_version'] ?? ''));
-
-            if ($latestVersion === '') {
-                return redirect()->route('super-admin.dashboard')->withErrors([
-                    'tenant_approval' => 'No latest release found on GitHub. Please try again later.',
-                ]);
-            }
-
             $selectedRelease = [
                 'tag_name' => $latestVersion,
                 'name' => $latestVersion,
