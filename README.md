@@ -81,3 +81,144 @@ GITHUB_RELEASE_CACHE_MINUTES=15
 2. Create a GitHub Release for that tag.
 3. Set production `APP_VERSION` to the deployed tag.
 4. Super Admin Dashboard will show current version, latest release, and update status.
+
+## Run BrewCloud on Another PC
+
+### 1) Install Prerequisites
+
+- PHP 8.2+
+- Composer
+- Node.js 20+ and npm
+- MySQL 8+
+
+### 2) Clone and Setup
+
+```bash
+git clone <your-repo-url> brewcloud
+cd brewcloud
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
+php artisan migrate --force
+npm run build
+```
+
+### 3) Configure Domain for Multi-Tenant Subdomains
+
+Set these values in `.env` on each PC:
+
+```env
+APP_URL=http://brewcloud.test:8000/
+APP_DOMAIN=brewcloud.test
+SESSION_DOMAIN=.brewcloud.test
+```
+
+Then ensure local DNS/hosts resolves:
+
+- `brewcloud.test`
+- `*.brewcloud.test`
+
+### 4) Run Required Workers
+
+Your update notifications and other async tasks use queues. Run this on each environment:
+
+```bash
+php artisan queue:work --tries=3 --timeout=120
+```
+
+If you use a process manager, keep this worker always running.
+
+## Sync Downloaded/New Version
+
+When you pull or download a new version, run the sync script inside the project root.
+
+### Windows (PowerShell)
+
+```powershell
+./scripts/update-and-sync.ps1
+```
+
+Optional: deploy a specific release tag from Git:
+
+```powershell
+./scripts/update-and-sync.ps1 -ReleaseTag v1.0.7
+```
+
+### Linux/macOS
+
+```bash
+chmod +x ./scripts/update-and-sync.sh
+./scripts/update-and-sync.sh
+```
+
+Optional specific tag:
+
+```bash
+./scripts/update-and-sync.sh v1.0.7
+```
+
+What the script does:
+
+1. Puts app in maintenance mode
+2. Attempts a DB backup (if `mysqldump` exists)
+3. Pulls or checks out release code (Git repositories)
+4. Installs dependencies
+5. Runs migrations
+6. Builds frontend assets
+7. Refreshes Laravel caches
+8. Restarts queue workers
+9. Brings app back online
+
+## Automatic Release Polling
+
+BrewCloud now includes a release sync command:
+
+```bash
+php artisan updates:sync-latest --publish
+```
+
+- Detects latest GitHub release
+- Prevents duplicate processing using cached `last_seen_release`
+- Queues tenant OTA update metadata notifications when new release is detected
+
+Scheduler is enabled by default via:
+
+```env
+RELEASE_SYNC_ENABLED=true
+RELEASE_SYNC_CRON=*/15 * * * *
+```
+
+Make sure Laravel scheduler runs every minute:
+
+```bash
+php artisan schedule:run
+```
+
+For production, configure a system cron/task to run scheduler every minute.
+
+## Tenant Click-to-Update (Deploy from GitHub)
+
+When a shop owner clicks update, BrewCloud can now queue a real server-side sync from GitHub.
+
+Enable this in `.env`:
+
+```env
+UPDATER_ENABLED=true
+TENANT_CAN_TRIGGER_UPDATER=true
+UPDATER_BRANCH=main
+UPDATER_TIMEOUT_SECONDS=1800
+UPDATER_LOCK_SECONDS=3600
+```
+
+Behavior:
+
+1. Tenant owner clicks update on the updates page.
+2. App validates selected tag is the latest release.
+3. A queued job runs the update script (`scripts/update-and-sync.ps1` or `scripts/update-and-sync.sh`).
+4. Tenant OTA status is updated to `queued`, `running`, `applied`, or `failed`.
+
+Important:
+
+- Keep `TENANT_CAN_TRIGGER_UPDATER=false` if only platform admins should deploy code.
+- Ensure queue worker is always running, otherwise update jobs will stay queued.

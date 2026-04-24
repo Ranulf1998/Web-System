@@ -1,11 +1,15 @@
 <?php
 
 use App\Models\Tenant;
+use App\Services\GitHubReleaseService;
 use App\Services\TenantDatabaseProvisioner;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schedule;
 use Illuminate\Support\Facades\Schema;
+use App\Jobs\ProcessTenantOtaUpdateJob;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -373,3 +377,53 @@ Artisan::command('tenants:migrate-users {--subdomain=} {--dry-run} {--keep-centr
     $this->info("{$mode}. Tenants processed: {$totals['processed_tenants']}, tenants skipped: {$totals['skipped_tenants']}, users migrated: {$totals['migrated_users']}. ");
     $this->line('Tip: run with --keep-central first for verification, then run again without --keep-central to finalize cleanup.');
 })->purpose('Migrate tenant users/roles from central DB to per-tenant databases');
+
+Artisan::command('updates:sync-latest {--publish : Queue tenant OTA notifications when a newer release is detected} {--force : Ignore the last seen release guard}', function (GitHubReleaseService $releaseService) {
+    $enabled = filter_var((string) env('RELEASE_SYNC_ENABLED', 'true'), FILTER_VALIDATE_BOOL);
+
+    if (! $enabled) {
+        $this->warn('Release sync is disabled by RELEASE_SYNC_ENABLED=false.');
+        return;
+    }
+
+    $latest = $releaseService->latest(false);
+    $latestTag = trim((string) ($latest['latest_version'] ?? ''));
+
+    if ($latestTag === '') {
+        $this->warn('No latest release was returned from GitHub.');
+        return;
+    }
+
+    $cacheStore = Cache::store((string) config('version.cache_store', 'file'));
+    $lastSeen = trim((string) $cacheStore->get('updates.last_seen_release', ''));
+    $force = (bool) $this->option('force');
+
+    if (! $force && $lastSeen !== '' && strcasecmp($lastSeen, $latestTag) === 0) {
+        $this->line('No new release detected. Last seen: ' . $lastSeen);
+        return;
+    }
+
+    $cacheStore->forever('updates.last_seen_release', $latestTag);
+    Cache::forget($releaseService->cacheKey());
+
+    $this->info('Detected latest release: ' . $latestTag);
+
+    if ((bool) $this->option('publish')) {
+        ProcessTenantOtaUpdateJob::dispatch(
+            releaseTag: $latestTag,
+            releaseUrl: $latest['latest_url'] ?? null,
+            applyImmediately: false,
+        );
+
+        $this->info('Tenant OTA metadata update job dispatched.');
+        return;
+    }
+
+    $this->line('Run with --publish to queue tenant notifications/metadata sync.');
+})->purpose('Sync latest GitHub release metadata and optionally publish OTA update notices to tenants');
+
+if (filter_var((string) env('RELEASE_SYNC_ENABLED', 'true'), FILTER_VALIDATE_BOOL)) {
+    Schedule::command('updates:sync-latest --publish')
+        ->cron((string) env('RELEASE_SYNC_CRON', '*/15 * * * *'))
+        ->withoutOverlapping();
+}

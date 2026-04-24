@@ -52,6 +52,12 @@
                     </div>
 
                     <div class="flex flex-wrap items-center gap-2">
+                        <a
+                            href="{{ route('tenant.updates', ['refresh' => 1]) }}"
+                            class="rounded-full border border-indigo-300 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-50"
+                        >
+                            Check for updates
+                        </a>
                         @if ($updateAvailable)
                             <span class="inline-flex rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">Update available</span>
                         @else
@@ -73,6 +79,12 @@
                         @endif
                     </div>
                 </div>
+
+                @if (($isFreshCheck ?? false) === true)
+                    <div class="mt-4 rounded-2xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+                        Release data was refreshed directly from GitHub.
+                    </div>
+                @endif
 
             </div>
 

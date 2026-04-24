@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SyncApplicationFromGitHubJob;
 use App\Services\GitHubReleaseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -93,13 +94,14 @@ class DashboardController extends Controller
         ]);
     }
 
-    public function updates(GitHubReleaseService $releaseService): View
+    public function updates(Request $request, GitHubReleaseService $releaseService): View
     {
         abort_unless(Auth::user()?->hasRole('Owner') ?? false, 403, 'Only the shop owner can access updates.');
 
+        $useCache = ! $request->boolean('refresh');
         $tenant = tenant();
-        $versionInfo = $releaseService->latest();
-        $releases = $releaseService->releases(12);
+        $versionInfo = $releaseService->latest($useCache);
+        $releases = $releaseService->releases(12, $useCache);
         $tenantCurrentVersion = trim((string) data_get($tenant->settings, 'updates.ota.current_version', ''));
 
         if ($tenantCurrentVersion !== '') {
@@ -118,12 +120,19 @@ class DashboardController extends Controller
             'versionInfo' => $versionInfo,
             'releases' => $releases,
             'otaInfo' => data_get($tenant->settings, 'updates.ota', []),
+            'isFreshCheck' => ! $useCache,
         ]);
     }
 
     public function applyUpdate(Request $request, GitHubReleaseService $releaseService): RedirectResponse
     {
         abort_unless(Auth::user()?->hasRole('Owner') ?? false, 403, 'Only the shop owner can apply updates.');
+
+        if (! (bool) config('version.tenant_can_trigger_updater', false)) {
+            return redirect()
+                ->route('tenant.updates')
+                ->withErrors(['release_tag' => 'Tenant-triggered platform updates are disabled by the administrator.']);
+        }
 
         $validated = $request->validate([
             'release_tag' => ['required', 'string', 'max:50'],
@@ -158,21 +167,28 @@ class DashboardController extends Controller
 
         $tenant = tenant();
         $settings = is_array($tenant->settings) ? $tenant->settings : [];
+        $resolvedReleaseUrl = (string) ($release['html_url'] ?? ($validated['release_url'] ?? ''));
 
         data_set($settings, 'updates.ota.latest_release', (string) $release['tag_name']);
-        data_set($settings, 'updates.ota.current_version', (string) $release['tag_name']);
-        data_set($settings, 'updates.ota.release_url', (string) ($release['html_url'] ?? ($validated['release_url'] ?? '')));
-        data_set($settings, 'updates.ota.status', 'applied');
-        data_set($settings, 'updates.ota.applied_at', now()->toIso8601String());
-        data_set($settings, 'updates.ota.applied_by', Auth::id());
-        data_set($settings, 'updates.ota.applied_by_name', (string) (Auth::user()?->name ?? 'Owner'));
+        data_set($settings, 'updates.ota.release_url', $resolvedReleaseUrl);
+        data_set($settings, 'updates.ota.status', 'queued');
+        data_set($settings, 'updates.ota.requested_at', now()->toIso8601String());
+        data_set($settings, 'updates.ota.requested_by', Auth::id());
+        data_set($settings, 'updates.ota.requested_by_name', (string) (Auth::user()?->name ?? 'Owner'));
+        data_forget($settings, 'updates.ota.last_error');
 
         $tenant->settings = $settings;
         $tenant->save();
 
+        SyncApplicationFromGitHubJob::dispatch(
+            tenantId: (int) $tenant->id,
+            releaseTag: (string) $release['tag_name'],
+            releaseUrl: $resolvedReleaseUrl !== '' ? $resolvedReleaseUrl : null,
+        );
+
         return redirect()
             ->route('tenant.updates')
-            ->with('status', 'Update applied: ' . (string) $release['tag_name']);
+            ->with('status', 'Update queued for deployment: ' . (string) $release['tag_name'] . '. Refresh this page after a minute to see the result.');
     }
 
     protected function availableWidgets(): array
