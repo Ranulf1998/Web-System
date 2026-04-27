@@ -25,38 +25,37 @@ use Illuminate\Support\Facades\Route;
 | These routes are only available on the central domains, not tenant subdomains.
 */
 
-foreach (['127.0.0.1', 'localhost'] as $centralDomain) {
-    Route::domain($centralDomain)->group(function () {
-        Route::get('/', function () {
-            return view('welcome');
-        })->name('home');
+// Force all central domain routes to use only 'localhost' for session consistency
+Route::domain('localhost')->group(function () {
+    Route::get('/', function () {
+        return view('welcome');
+    })->name('home');
 
-        Route::get('/register', [TenantController::class, 'create'])->name('tenant.register');
-        Route::post('/register', [TenantController::class, 'store']);
-        Route::post('/register/payment/session', [TenantController::class, 'createStripeRegistrationSession'])->name('tenant.register.payment.session');
-        Route::get('/register/payment/success', [TenantController::class, 'stripeSuccess'])->name('tenant.register.payment.success');
-        Route::get('/shop-login', [TenantController::class, 'shopLogin'])->name('tenant.shop-login');
+    Route::get('/register', [TenantController::class, 'create'])->name('tenant.register');
+    Route::post('/register', [TenantController::class, 'store']);
+    Route::post('/register/payment/session', [TenantController::class, 'createStripeRegistrationSession'])->name('tenant.register.payment.session');
+    Route::get('/register/payment/success', [TenantController::class, 'stripeSuccess'])->name('tenant.register.payment.success');
+    Route::get('/shop-login', [TenantController::class, 'shopLogin'])->name('tenant.shop-login');
 
-        Route::get('/super-admin/login', [SuperAdminController::class, 'showLoginForm'])->name('super-admin.login');
-        Route::post('/super-admin/login', [SuperAdminController::class, 'login'])->name('super-admin.login.store');
+    Route::get('/super-admin/login', [SuperAdminController::class, 'showLoginForm'])->name('super-admin.login');
+    Route::post('/super-admin/login', [SuperAdminController::class, 'login'])->name('super-admin.login.store');
 
-        Route::middleware('auth')->group(function () {
-            Route::get('/super-admin/dashboard', [SuperAdminController::class, 'dashboard'])->name('super-admin.dashboard');
-            Route::post('/super-admin/tenants/{tenant}/suspend', [SuperAdminController::class, 'suspendTenant'])->name('super-admin.tenants.suspend');
-            Route::post('/super-admin/tenants/{tenant}/unsuspend', [SuperAdminController::class, 'unsuspendTenant'])->name('super-admin.tenants.unsuspend');
-            Route::post('/super-admin/tenants/{tenant}/approve', [SuperAdminController::class, 'approveTenant'])->name('super-admin.tenants.approve');
-            Route::post('/super-admin/tenants/{tenant}/decline', [SuperAdminController::class, 'declineTenant'])->name('super-admin.tenants.decline');
-            Route::post('/super-admin/tenants/{tenant}/subscription/renew', [SuperAdminController::class, 'renewTenantSubscription'])->name('super-admin.tenants.subscription.renew');
-            Route::patch('/super-admin/tenants/{tenant}/subscription/plan', [SuperAdminController::class, 'changeTenantSubscriptionPlan'])->name('super-admin.tenants.subscription.plan.update');
-            Route::patch('/super-admin/support-tickets/{supportTicket}/status', [SuperAdminController::class, 'updateSupportTicketStatus'])->name('super-admin.support-tickets.status.update');
-            Route::post('/super-admin/updates/apply-latest', [SuperAdminController::class, 'applyLatestUpdate'])->name('super-admin.updates.apply-latest');
-            Route::post('/super-admin/central-admins', [SuperAdminController::class, 'storeCentralAdmin'])->name('super-admin.central-admins.store');
-            Route::patch('/super-admin/central-admins/{user}/role', [SuperAdminController::class, 'updateCentralAdminRole'])->name('super-admin.central-admins.role.update');
-            Route::delete('/super-admin/central-admins/{user}', [SuperAdminController::class, 'destroyCentralAdmin'])->name('super-admin.central-admins.destroy');
-            Route::post('/super-admin/logout', [SuperAdminController::class, 'logout'])->name('super-admin.logout');
-        });
+    Route::middleware('auth')->group(function () {
+        Route::get('/super-admin/dashboard', [SuperAdminController::class, 'dashboard'])->name('super-admin.dashboard');
+        Route::post('/super-admin/tenants/{tenant}/suspend', [SuperAdminController::class, 'suspendTenant'])->name('super-admin.tenants.suspend');
+        Route::post('/super-admin/tenants/{tenant}/unsuspend', [SuperAdminController::class, 'unsuspendTenant'])->name('super-admin.tenants.unsuspend');
+        Route::post('/super-admin/tenants/{tenant}/approve', [SuperAdminController::class, 'approveTenant'])->name('super-admin.tenants.approve');
+        Route::post('/super-admin/tenants/{tenant}/decline', [SuperAdminController::class, 'declineTenant'])->name('super-admin.tenants.decline');
+        Route::post('/super-admin/tenants/{tenant}/subscription/renew', [SuperAdminController::class, 'renewTenantSubscription'])->name('super-admin.tenants.subscription.renew');
+        Route::patch('/super-admin/tenants/{tenant}/subscription/plan', [SuperAdminController::class, 'changeTenantSubscriptionPlan'])->name('super-admin.tenants.subscription.plan.update');
+        Route::patch('/super-admin/support-tickets/{supportTicket}/status', [SuperAdminController::class, 'updateSupportTicketStatus'])->name('super-admin.support-tickets.status.update');
+        Route::post('/super-admin/updates/apply-latest', [SuperAdminController::class, 'applyLatestUpdate'])->name('super-admin.updates.apply-latest');
+        Route::post('/super-admin/central-admins', [SuperAdminController::class, 'storeCentralAdmin'])->name('super-admin.central-admins.store');
+        Route::patch('/super-admin/central-admins/{user}/role', [SuperAdminController::class, 'updateCentralAdminRole'])->name('super-admin.central-admins.role.update');
+        Route::delete('/super-admin/central-admins/{user}', [SuperAdminController::class, 'destroyCentralAdmin'])->name('super-admin.central-admins.destroy');
+        Route::post('/super-admin/logout', [SuperAdminController::class, 'logout'])->name('super-admin.logout');
     });
-}
+});
 
 /*
 |--------------------------------------------------------------------------
