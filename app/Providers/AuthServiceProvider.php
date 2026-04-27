@@ -6,8 +6,10 @@ use App\Models\Product;
 use App\Policies\ProductPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use App\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;
+use Throwable;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -27,27 +29,29 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
 
-        $permissions = [
-            'use pos',
-            'create orders',
-            'process payments',
-            'manage brewing orders',
-            'view products',
-            'view brewing guides',
-            'manage products',
-            'view reports',
-            'manage users',
-            'delete users',
-        ];
+        if ($this->canSeedPermissions()) {
+            $permissions = [
+                'use pos',
+                'create orders',
+                'process payments',
+                'manage brewing orders',
+                'view products',
+                'view brewing guides',
+                'manage products',
+                'view reports',
+                'manage users',
+                'delete users',
+            ];
 
-        foreach ($permissions as $permission) {
-            Permission::firstOrCreate([
-                'name' => $permission,
-                'guard_name' => 'web',
-            ]);
+            foreach ($permissions as $permission) {
+                Permission::firstOrCreate([
+                    'name' => $permission,
+                    'guard_name' => 'web',
+                ]);
+            }
+
+            app(PermissionRegistrar::class)->forgetCachedPermissions();
         }
-
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         Gate::define('manage products', function ($user) {
             return $user->hasRole('Owner') || $user->hasPermissionTo('manage products');
@@ -60,5 +64,14 @@ class AuthServiceProvider extends ServiceProvider
         Gate::define('delete users', function ($user) {
             return $user->hasPermissionTo('delete users');
         });
+    }
+
+    protected function canSeedPermissions(): bool
+    {
+        try {
+            return Schema::hasTable('permissions');
+        } catch (Throwable $e) {
+            return false;
+        }
     }
 }

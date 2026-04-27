@@ -7,40 +7,52 @@ use Closure;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 
 class TrackTenantBandwidthUsage
 {
+    protected int $flushIntervalSeconds = 30;
+
+    protected int $flushThresholdBytes = 65536;
+
     public function handle(Request $request, Closure $next)
     {
+        $this->flushIntervalSeconds = max((int) config('tenancy.bandwidth.flush_interval_seconds', 30), 1);
+        $this->flushThresholdBytes = max((int) config('tenancy.bandwidth.flush_threshold_bytes', 65536), 1024);
+
         $tenant = tenant();
-        if (! $tenant instanceof Tenant) {
+        if (!$tenant instanceof Tenant) {
             return $next($request);
         }
 
+        $pendingUsageCacheKey = $this->pendingUsageCacheKey((int) $tenant->getKey());
+        $lastFlushCacheKey = $this->lastFlushCacheKey((int) $tenant->getKey());
+        $pendingBytes = max((int) Cache::get($pendingUsageCacheKey, 0), 0);
+
         $freshTenant = Tenant::on('central')->find($tenant->getKey());
-        if (! $freshTenant) {
+        if (!$freshTenant) {
             return $next($request);
         }
 
         $settings = is_array($freshTenant->settings) ? $freshTenant->settings : [];
         $monthKey = now()->format('Y-m');
         $monthlyUsage = data_get($settings, 'usage.bandwidth_monthly', []);
-        if (! is_array($monthlyUsage)) {
+        if (!is_array($monthlyUsage)) {
             $monthlyUsage = [];
         }
 
         $planLimitBytes = $freshTenant->bandwidthLimitBytes();
-        $currentMonthBytes = max((int) ($monthlyUsage[$monthKey] ?? 0), 0);
+        $currentMonthBytes = max((int) ($monthlyUsage[$monthKey] ?? 0), 0) + $pendingBytes;
 
         if ($planLimitBytes !== null) {
-            if ($currentMonthBytes > $planLimitBytes && ! $this->shouldBypassHardBlock($request)) {
+            if ($currentMonthBytes > $planLimitBytes && !$this->shouldBypassHardBlock($request)) {
                 return $this->buildHardBlockResponse($request, $freshTenant, $monthKey, $currentMonthBytes, $planLimitBytes);
             }
 
             if ($this->shouldShowSoftWarning($currentMonthBytes, $planLimitBytes) && $request->hasSession()) {
                 $request->session()->flash(
                     'bandwidth_warning',
-                    'Monthly bandwidth usage is high: '.$this->formatBytes($currentMonthBytes).' of '.$this->formatBytes($planLimitBytes).' used.'
+                    'Monthly bandwidth usage is high: ' . $this->formatBytes($currentMonthBytes) . ' of ' . $this->formatBytes($planLimitBytes) . ' used.'
                 );
             }
         }
@@ -55,8 +67,17 @@ class TrackTenantBandwidthUsage
             return $response;
         }
 
+        $pendingBytes += $totalBytes;
+        Cache::put($pendingUsageCacheKey, $pendingBytes, now()->addMinutes(10));
+
+        $shouldFlush = $this->shouldFlushPendingUsage($pendingBytes, (int) Cache::get($lastFlushCacheKey, 0));
+
+        if (!$shouldFlush) {
+            return $response;
+        }
+
         $freshTenant = Tenant::on('central')->find($tenant->getKey());
-        if (! $freshTenant) {
+        if (!$freshTenant) {
             return $response;
         }
 
@@ -65,11 +86,11 @@ class TrackTenantBandwidthUsage
         $monthKey = now()->format('Y-m');
         $monthlyUsage = data_get($settings, 'usage.bandwidth_monthly', []);
 
-        if (! is_array($monthlyUsage)) {
+        if (!is_array($monthlyUsage)) {
             $monthlyUsage = [];
         }
 
-        $monthlyUsage[$monthKey] = max((int) ($monthlyUsage[$monthKey] ?? 0), 0) + $totalBytes;
+        $monthlyUsage[$monthKey] = max((int) ($monthlyUsage[$monthKey] ?? 0), 0) + $pendingBytes;
 
         ksort($monthlyUsage);
         if (count($monthlyUsage) > 12) {
@@ -79,7 +100,7 @@ class TrackTenantBandwidthUsage
         $planLimitBytes = $freshTenant->bandwidthLimitBytes();
         $currentMonthBytes = max((int) ($monthlyUsage[$monthKey] ?? 0), 0);
 
-        data_set($settings, 'usage.bandwidth_bytes', max($currentBytes, 0) + $totalBytes);
+        data_set($settings, 'usage.bandwidth_bytes', max($currentBytes, 0) + $pendingBytes);
         data_set($settings, 'usage.bandwidth_monthly', $monthlyUsage);
         data_set($settings, 'usage.bandwidth_current_month', $monthKey);
         data_set($settings, 'usage.bandwidth_current_month_bytes', $currentMonthBytes);
@@ -90,7 +111,33 @@ class TrackTenantBandwidthUsage
         $freshTenant->settings = $settings;
         $freshTenant->save();
 
+        Cache::forget($pendingUsageCacheKey);
+        Cache::put($lastFlushCacheKey, time(), now()->addMinutes(10));
+
         return $response;
+    }
+
+    protected function shouldFlushPendingUsage(int $pendingBytes, int $lastFlushAt): bool
+    {
+        if ($pendingBytes >= $this->flushThresholdBytes) {
+            return true;
+        }
+
+        if ($lastFlushAt <= 0) {
+            return true;
+        }
+
+        return (time() - $lastFlushAt) >= $this->flushIntervalSeconds;
+    }
+
+    protected function pendingUsageCacheKey(int $tenantId): string
+    {
+        return 'tenant:bandwidth:pending:' . $tenantId;
+    }
+
+    protected function lastFlushCacheKey(int $tenantId): string
+    {
+        return 'tenant:bandwidth:last_flush:' . $tenantId;
     }
 
     protected function resolveResponseBytes($response): int
@@ -122,7 +169,7 @@ class TrackTenantBandwidthUsage
     {
         $routeName = $request->route()?->getName();
 
-        if (! is_string($routeName) || $routeName === '') {
+        if (!is_string($routeName) || $routeName === '') {
             return false;
         }
 
@@ -165,6 +212,6 @@ class TrackTenantBandwidthUsage
             $unitIndex++;
         }
 
-        return number_format((float) $value, 2).' '.$units[$unitIndex];
+        return number_format((float) $value, 2) . ' ' . $units[$unitIndex];
     }
 }

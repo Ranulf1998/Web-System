@@ -4,7 +4,9 @@ namespace App\Http\Middleware;
 
 use Closure;
 use App\Models\Tenant;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\URL;
 use Stancl\Tenancy\Tenancy;
 
@@ -23,7 +25,11 @@ class IdentifyTenant
             return $next($request);
         }
 
-        $tenant = Tenant::on('central')->where('subdomain', $subdomain)->firstOrFail();
+        $tenantCacheSeconds = max((int) env('TENANT_RESOLVE_CACHE_SECONDS', 15), 1);
+        $tenantCacheKey = 'tenant:subdomain:' . strtolower((string) $subdomain);
+        $tenant = Cache::remember($tenantCacheKey, now()->addSeconds($tenantCacheSeconds), function () use ($subdomain) {
+            return Tenant::on('central')->where('subdomain', $subdomain)->firstOrFail();
+        });
 
         $registrationStatus = strtolower(trim((string) data_get($tenant->settings, 'status.registration', 'approved')));
 
@@ -75,19 +81,50 @@ class IdentifyTenant
             $currentUser = Auth::user();
             $sessionUserId = Auth::id();
 
+            $authFingerprint = implode('|', [
+                (string) $tenant->id,
+                (string) ($sessionUserId ?? ''),
+                strtolower(trim((string) ($currentUser?->email ?? ''))),
+            ]);
+
+            $validatedFingerprint = (string) $request->session()->get('tenant_auth.validated_fingerprint', '');
+            $validatedAt = (int) $request->session()->get('tenant_auth.validated_at', 0);
+            $authRevalidationSeconds = max((int) env('TENANT_AUTH_REVALIDATION_SECONDS', 60), 1);
+
+            if (
+                $validatedFingerprint === $authFingerprint
+                && $validatedAt > 0
+                && (time() - $validatedAt) <= $authRevalidationSeconds
+            ) {
+                return $next($request);
+            }
+
             $tenantUser = null;
 
-            if ($currentUser && isset($currentUser->email)) {
-                $tenantUser = \App\Models\User::on('tenant')
-                    ->where('email', (string) $currentUser->email)
-                    ->first();
+            $email = strtolower(trim((string) ($currentUser?->email ?? '')));
+            $hasEmail = $email !== '';
+
+            if ($hasEmail || $sessionUserId !== null) {
+                $tenantUserQuery = User::on('tenant')
+                    ->newQuery()
+                    ->where(function ($query) use ($email, $sessionUserId) {
+                        if ($email !== '') {
+                            $query->orWhere('email', $email);
+                        }
+
+                        if ($sessionUserId !== null) {
+                            $query->orWhere('id', (int) $sessionUserId);
+                        }
+                    });
+
+                if ($hasEmail) {
+                    $tenantUserQuery->orderByRaw('CASE WHEN email = ? THEN 0 ELSE 1 END', [$email]);
+                }
+
+                $tenantUser = $tenantUserQuery->first();
             }
 
-            if (! $tenantUser && $sessionUserId !== null) {
-                $tenantUser = \App\Models\User::on('tenant')->find($sessionUserId);
-            }
-
-            if (! $tenantUser || (int) $tenantUser->tenant_id !== (int) $tenant->id) {
+            if (!$tenantUser || (int) $tenantUser->tenant_id !== (int) $tenant->id) {
                 Auth::logout();
                 $request->session()->invalidate();
                 $request->session()->regenerateToken();
@@ -96,6 +133,8 @@ class IdentifyTenant
             }
 
             Auth::setUser($tenantUser);
+            $request->session()->put('tenant_auth.validated_fingerprint', $authFingerprint);
+            $request->session()->put('tenant_auth.validated_at', time());
         }
 
         return $next($request);

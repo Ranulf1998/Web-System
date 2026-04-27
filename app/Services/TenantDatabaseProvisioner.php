@@ -11,9 +11,9 @@ class TenantDatabaseProvisioner
 {
     public function generateDatabaseName(string $subdomain): string
     {
-        $prefix = (string) config('tenancy.database_prefix', 'tenant_');
+        $prefix = (string) config('tenancy.database.prefix', 'tenant_');
 
-        return $prefix.$subdomain;
+        return $prefix . $subdomain;
     }
 
     public function createDatabase(string $databaseName): void
@@ -43,6 +43,12 @@ class TenantDatabaseProvisioner
             throw new RuntimeException('Tenant database settings are missing.');
         }
 
+        $migrationPath = database_path('migrations/tenant');
+
+        if (!is_dir($migrationPath)) {
+            throw new RuntimeException("Tenant migration path not found: {$migrationPath}");
+        }
+
         config([
             'database.connections.tenant.host' => $database['host'] ?? config('database.connections.tenant.host'),
             'database.connections.tenant.port' => $database['port'] ?? config('database.connections.tenant.port'),
@@ -54,12 +60,22 @@ class TenantDatabaseProvisioner
         DB::purge('tenant');
         DB::reconnect('tenant');
 
-        Artisan::call('migrate', [
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
+        @ini_set('max_execution_time', '0');
+
+        $exitCode = Artisan::call('migrate:fresh', [
             '--database' => 'tenant',
-            '--path' => database_path('migrations/tenant'),
+            '--path' => $migrationPath,
             '--realpath' => true,
             '--force' => true,
         ]);
+
+        if ($exitCode !== 0) {
+            throw new RuntimeException('Tenant migration failed: ' . trim((string) Artisan::output()));
+        }
     }
 
     protected function assertValidDatabaseName(string $databaseName): void

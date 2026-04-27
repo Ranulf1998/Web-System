@@ -19,16 +19,25 @@ return [
 
     'bootstrappers' => [
         Stancl\Tenancy\Bootstrappers\DatabaseTenancyBootstrapper::class,
-        Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
+
+        // ❌ DISABLED (causes "cache store does not support tagging")
+        // Stancl\Tenancy\Bootstrappers\CacheTenancyBootstrapper::class,
+
         Stancl\Tenancy\Bootstrappers\FilesystemTenancyBootstrapper::class,
         Stancl\Tenancy\Bootstrappers\QueueTenancyBootstrapper::class,
     ],
 
     'database' => [
-        'central_connection' => env('DB_CONNECTION', 'central'),
-        'template_tenant_connection' => env('TENANCY_TEMPLATE_CONNECTION', env('DB_CONNECTION', 'central')),
+        'central_connection' => env('DB_CONNECTION', 'mysql'),
+
+        'template_tenant_connection' => env(
+            'TENANCY_TEMPLATE_CONNECTION',
+            env('DB_CONNECTION', 'mysql')
+        ),
+
         'prefix' => env('TENANCY_DATABASE_PREFIX', 'tenant_'),
         'suffix' => '',
+
         'managers' => [
             'sqlite' => Stancl\Tenancy\TenantDatabaseManagers\SQLiteDatabaseManager::class,
             'mysql' => Stancl\Tenancy\TenantDatabaseManagers\MySQLDatabaseManager::class,
@@ -36,20 +45,24 @@ return [
         ],
     ],
 
+    // ⚠️ Keep this, but it's harmless now since cache bootstrapper is disabled
     'cache' => [
         'tag_base' => 'tenant',
     ],
 
     'filesystem' => [
         'suffix_base' => 'tenant',
+
         'disks' => [
             'local',
             'public',
         ],
+
         'root_override' => [
             'local' => '%storage_path%/app/',
             'public' => '%storage_path%/app/public/',
         ],
+
         'suffix_storage_path' => true,
         'asset_helper_tenancy' => true,
     ],
@@ -73,11 +86,17 @@ return [
         '--class' => 'DatabaseSeeder',
     ],
 
-    // Backward-compatible custom keys used by existing app code.
+    // Custom DB config for tenants
     'charset' => env('TENANCY_DB_CHARSET', 'utf8mb4'),
     'collation' => env('TENANCY_DB_COLLATION', 'utf8mb4_unicode_ci'),
+
     'tenant_host' => env('TENANT_DB_HOST', env('DB_HOST', '127.0.0.1')),
     'tenant_port' => env('TENANT_DB_PORT', env('DB_PORT', '3306')),
     'tenant_username' => env('TENANT_DB_USERNAME', env('DB_USERNAME', 'root')),
     'tenant_password' => env('TENANT_DB_PASSWORD', env('DB_PASSWORD', '')),
+
+    'bandwidth' => [
+        'flush_interval_seconds' => (int) env('TENANCY_BANDWIDTH_FLUSH_INTERVAL_SECONDS', 30),
+        'flush_threshold_bytes' => (int) env('TENANCY_BANDWIDTH_FLUSH_THRESHOLD_BYTES', 65536),
+    ],
 ];

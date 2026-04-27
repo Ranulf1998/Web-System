@@ -86,7 +86,7 @@ class SuperAdminController extends Controller
             'password' => $credentials['password'],
         ];
 
-        if (! Auth::attempt($credentials, $request->boolean('remember'))) {
+        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
             throw ValidationException::withMessages([
                 'email' => trans('auth.failed'),
             ]);
@@ -112,7 +112,7 @@ class SuperAdminController extends Controller
         abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
 
         $safeTableCount = static function (string $table): int {
-            if (! Schema::connection('central')->hasTable($table)) {
+            if (!Schema::connection('central')->hasTable($table)) {
                 return 0;
             }
 
@@ -137,8 +137,8 @@ class SuperAdminController extends Controller
             ->get(['id', 'name', 'subdomain', 'plan', 'lease_starts_at', 'lease_ends_at', 'settings', 'created_at']);
 
         $databaseNames = $currentTenants
-            ->map(fn (Tenant $tenant) => data_get($tenant->settings, 'database.database'))
-            ->filter(fn ($databaseName) => is_string($databaseName) && $databaseName !== '')
+            ->map(fn(Tenant $tenant) => data_get($tenant->settings, 'database.database'))
+            ->filter(fn($databaseName) => is_string($databaseName) && $databaseName !== '')
             ->unique()
             ->values();
 
@@ -152,7 +152,7 @@ class SuperAdminController extends Controller
                     ->whereIn('TABLE_SCHEMA', $databaseNames->all())
                     ->groupBy('TABLE_SCHEMA')
                     ->pluck('total_bytes', 'database_name')
-                    ->map(fn ($bytes) => (int) $bytes)
+                    ->map(fn($bytes) => (int) $bytes)
                     ->toArray();
             } catch (\Throwable) {
                 $databaseUsageByName = [];
@@ -227,9 +227,9 @@ class SuperAdminController extends Controller
             $tenant->setAttribute('display_bandwidth_usage', $bandwidthUsage);
             $tenant->setAttribute('display_renewal_history', array_values(array_filter(
                 is_array(data_get($tenant->settings, 'subscription.renewal_history', []))
-                    ? data_get($tenant->settings, 'subscription.renewal_history', [])
-                    : [],
-                fn ($entry) => is_array($entry)
+                ? data_get($tenant->settings, 'subscription.renewal_history', [])
+                : [],
+                fn($entry) => is_array($entry)
             )));
             $tenant->setAttribute('display_is_suspended', $isSuspended);
             $tenant->setAttribute('display_suspended_at', $isSuspended ? Carbon::parse($suspendedAtRaw) : null);
@@ -250,7 +250,7 @@ class SuperAdminController extends Controller
                 return false;
             }
 
-            return ! $tenant->display_is_suspended
+            return !$tenant->display_is_suspended
                 && $leaseEnd
                 && $leaseEnd->copy()->endOfDay()->greaterThanOrEqualTo(now());
         });
@@ -266,9 +266,9 @@ class SuperAdminController extends Controller
         });
 
         $mrrByPlan = $activeSubscriptions
-            ->groupBy(fn (Tenant $tenant) => $tenant->planKey())
+            ->groupBy(fn(Tenant $tenant) => $tenant->planKey())
             ->map(function ($tenants, $planKey) {
-                $monthlyMrr = (float) $tenants->sum(fn (Tenant $tenant) => $tenant->display_monthly_price ?? config('plans.' . $tenant->planKey() . '.price', 0));
+                $monthlyMrr = (float) $tenants->sum(fn(Tenant $tenant) => $tenant->display_monthly_price ?? config('plans.' . $tenant->planKey() . '.price', 0));
 
                 return [
                     'plan' => ucfirst((string) $planKey),
@@ -300,12 +300,12 @@ class SuperAdminController extends Controller
             ->flatMap(function (Tenant $tenant) {
                 $history = $tenant->display_renewal_history;
 
-                if (! is_array($history)) {
+                if (!is_array($history)) {
                     return [];
                 }
 
                 return collect($history)
-                    ->filter(fn ($entry) => is_array($entry))
+                    ->filter(fn($entry) => is_array($entry))
                     ->map(function (array $entry) use ($tenant) {
                         $paidAtRaw = (string) ($entry['paid_at'] ?? '');
                         $paidAt = null;
@@ -327,7 +327,7 @@ class SuperAdminController extends Controller
                         ];
                     });
             })
-            ->sortByDesc(fn (array $row) => $row['paid_at']?->getTimestamp() ?? 0)
+            ->sortByDesc(fn(array $row) => $row['paid_at']?->getTimestamp() ?? 0)
             ->take(10)
             ->values();
 
@@ -358,8 +358,8 @@ class SuperAdminController extends Controller
             'estimated_mrr' => $estimatedMrr,
             'tenant_users' => $tenantUsersTotal,
             'super_admins' => User::whereNull('tenant_id')->count(),
-            'orders' => $safeTenantMetricCount('orders', static fn (): int => Order::count()),
-            'products' => $safeTenantMetricCount('products', static fn (): int => Product::count()),
+            'orders' => $safeTenantMetricCount('orders', static fn(): int => Order::count()),
+            'products' => $safeTenantMetricCount('products', static fn(): int => Product::count()),
             'sales_total' => $subscriptionSalesTotal,
             'total_database_bytes' => $totalDatabaseBytes,
             'total_bandwidth_bytes' => $totalBandwidthBytes,
@@ -397,7 +397,7 @@ class SuperAdminController extends Controller
         $cacheStore = Cache::store((string) config('version.cache_store', 'file'));
         $selectedRelease = $cacheStore->get('super_admin.updates.current_release');
 
-        if (is_array($selectedRelease) && ! empty($selectedRelease['tag_name'])) {
+        if (is_array($selectedRelease) && !empty($selectedRelease['tag_name'])) {
             $versionInfo['current_version'] = (string) $selectedRelease['tag_name'];
             $versionInfo['current_url'] = $selectedRelease['html_url'] ?? null;
             $versionInfo['current_selected_at'] = $selectedRelease['selected_at'] ?? null;
@@ -458,7 +458,7 @@ class SuperAdminController extends Controller
             }
         }
 
-        if (! is_array($selectedRelease)) {
+        if (!is_array($selectedRelease)) {
             $selectedRelease = [
                 'tag_name' => $latestVersion,
                 'name' => $latestVersion,
@@ -486,7 +486,7 @@ class SuperAdminController extends Controller
 
         $publishSelected = (bool) ($validated['publish_selected'] ?? false);
 
-        if (! $publishSelected) {
+        if (!$publishSelected) {
             return redirect()
                 ->route('super-admin.dashboard')
                 ->with('status', 'Downloaded latest metadata for ' . $selectedTag . '. Tenant emails were not sent.');
@@ -663,14 +663,17 @@ class SuperAdminController extends Controller
             $databaseProvisioner->runTenantMigrations($tenant);
 
             $this->configureTenantConnection($tenant);
+
             $tenancy = app(Tenancy::class);
             $tenancy->initialize($tenant);
 
             try {
+                $this->assertTenantSchemaReady();
+
                 DB::connection('tenant')->transaction(function () use ($tenant, $ownerName, $ownerEmail, $ownerPasswordHash) {
                     $user = User::on('tenant')->where('email', $ownerEmail)->first();
 
-                    if (! $user) {
+                    if (!$user) {
                         $user = User::on('tenant')->create([
                             'tenant_id' => $tenant->id,
                             'name' => $ownerName,
@@ -694,9 +697,16 @@ class SuperAdminController extends Controller
                 $tenancy->end();
             }
         } catch (\Throwable $exception) {
-            if ($databaseCreated && ! $databaseExisted) {
+            if ($databaseCreated || $databaseExisted) {
                 $databaseProvisioner->dropDatabase($databaseName);
             }
+
+            Log::error('Failed to approve tenant.', [
+                'tenant_id' => $tenant->id,
+                'tenant_name' => $tenant->name,
+                'database' => $databaseName,
+                'error' => $exception->getMessage(),
+            ]);
 
             return redirect()->route('super-admin.dashboard')->withErrors([
                 'tenant_approval' => "Failed to approve tenant '{$tenant->name}': " . $exception->getMessage(),
@@ -806,157 +816,37 @@ class SuperAdminController extends Controller
         return $ownerRole;
     }
 
-    protected function generateStrongPassword(int $length = 12): string
+    protected function assertTenantSchemaReady(): void
     {
-        $length = max($length, 8);
-
-        $upperChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-        $lowerChars = 'abcdefghijkmnopqrstuvwxyz';
-        $numberChars = '23456789';
-        $symbolChars = '!@#$%^&*()-_=+[]{}?';
-
-        $required = [
-            $upperChars[random_int(0, strlen($upperChars) - 1)],
-            $lowerChars[random_int(0, strlen($lowerChars) - 1)],
-            $numberChars[random_int(0, strlen($numberChars) - 1)],
-            $symbolChars[random_int(0, strlen($symbolChars) - 1)],
+        $requiredTables = [
+            'users',
+            'roles',
+            'permissions',
+            'model_has_roles',
+            'model_has_permissions',
+            'role_has_permissions',
         ];
 
-        $allChars = $upperChars . $lowerChars . $numberChars . $symbolChars;
-        $remainingCount = $length - count($required);
+        $missingTables = [];
 
-        for ($index = 0; $index < $remainingCount; $index++) {
-            $required[] = $allChars[random_int(0, strlen($allChars) - 1)];
+        foreach ($requiredTables as $table) {
+            if (!Schema::connection('tenant')->hasTable($table)) {
+                $missingTables[] = $table;
+            }
         }
 
-        shuffle($required);
-        $password = implode('', $required);
-
-        $policyPassed =
-            preg_match('/[A-Z]/', $password)
-            && preg_match('/[a-z]/', $password)
-            && preg_match('/\d/', $password)
-            && preg_match('/[^A-Za-z0-9]/', $password);
-
-        if (! $policyPassed) {
-            return $this->generateStrongPassword($length);
+        if ($missingTables !== []) {
+            throw new \RuntimeException(
+                'Tenant migration is incomplete. Missing tables: ' . implode(', ', $missingTables)
+            );
         }
-
-        return $password;
-    }
-
-    public function renewTenantSubscription(Request $request, Tenant $tenant): RedirectResponse
-    {
-        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
-
-        $validated = $request->validate([
-            'add_months' => ['required', 'integer', 'min:1', 'max:24'],
-            'payment_method' => ['required', 'in:gcash,bank'],
-        ]);
-
-        $addMonths = (int) $validated['add_months'];
-        $paymentMethod = strtolower(trim((string) $validated['payment_method']));
-        $monthlyPrice = (float) config('plans.' . $tenant->planKey() . '.price', 0);
-
-        $leaseStart = $tenant->lease_starts_at ?? $tenant->created_at ?? now();
-        $currentLeaseEnd = $tenant->lease_ends_at;
-        $effectiveBase = $currentLeaseEnd && $currentLeaseEnd->isFuture() ? $currentLeaseEnd->copy() : now();
-        $newLeaseEnd = $effectiveBase->addMonths($addMonths);
-
-        $settings = $tenant->settings ?? [];
-        $currentMonths = (int) data_get($settings, 'subscription.months', 0);
-        $newMonths = max($currentMonths + $addMonths, $addMonths);
-
-        data_set($settings, 'subscription.months', $newMonths);
-        data_set($settings, 'subscription.payment_method', $paymentMethod);
-        data_set($settings, 'subscription.monthly_price', $monthlyPrice);
-        data_set($settings, 'subscription.total_amount', $monthlyPrice * $newMonths);
-        data_set($settings, 'subscription.currency', 'PHP');
-        data_set($settings, 'subscription.last_added_months', $addMonths);
-        data_set($settings, 'subscription.last_payment_method', $paymentMethod);
-        data_set($settings, 'subscription.last_payment_amount', $monthlyPrice * $addMonths);
-        data_set($settings, 'subscription.last_paid_at', now()->toIso8601String());
-
-        $history = data_get($settings, 'subscription.renewal_history', []);
-        if (! is_array($history)) {
-            $history = [];
-        }
-
-        array_unshift($history, [
-            'paid_at' => now()->toIso8601String(),
-            'payment_method' => $paymentMethod,
-            'amount' => $monthlyPrice * $addMonths,
-            'months_added' => $addMonths,
-        ]);
-
-        $history = array_slice($history, 0, 10);
-        data_set($settings, 'subscription.renewal_history', $history);
-
-        $tenant->update([
-            'lease_starts_at' => $leaseStart,
-            'lease_ends_at' => $newLeaseEnd,
-            'settings' => $settings,
-        ]);
-
-        return redirect()->route('super-admin.dashboard')->with('status', "Subscription renewed for '{$tenant->name}'.");
-    }
-
-    public function changeTenantSubscriptionPlan(Request $request, Tenant $tenant): RedirectResponse
-    {
-        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
-
-        $planKeys = array_keys(config('plans', []));
-
-        $validated = $request->validate([
-            'plan' => ['required', 'string', 'in:' . implode(',', $planKeys)],
-        ]);
-
-        $newPlan = strtolower(trim((string) $validated['plan']));
-        $monthlyPrice = (float) config('plans.' . $newPlan . '.price', 0);
-
-        $settings = $tenant->settings ?? [];
-        $currentMonths = (int) data_get($settings, 'subscription.months', 0);
-        $currentMonths = max($currentMonths, 1);
-
-        data_set($settings, 'subscription.monthly_price', $monthlyPrice);
-        data_set($settings, 'subscription.total_amount', $monthlyPrice * $currentMonths);
-        data_set($settings, 'subscription.currency', 'PHP');
-        data_set($settings, 'subscription.last_plan_change_at', now()->toIso8601String());
-        data_set($settings, 'subscription.last_plan_changed_by', auth()->id());
-
-        $tenant->update([
-            'plan' => $newPlan,
-            'settings' => $settings,
-        ]);
-
-        return redirect()->route('super-admin.dashboard')->with('status', "Subscription plan updated for '{$tenant->name}'.");
-    }
-
-    public function updateSupportTicketStatus(Request $request, SupportTicket $supportTicket): RedirectResponse
-    {
-        abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
-
-        $validated = $request->validate([
-            'status' => ['required', 'in:open,in_progress,resolved'],
-            'resolution_note' => ['nullable', 'string', 'max:1000'],
-        ]);
-
-        $status = $validated['status'];
-        $resolutionNote = trim((string) ($validated['resolution_note'] ?? ''));
-
-        $supportTicket->status = $status;
-        $supportTicket->resolution_note = $resolutionNote !== '' ? $resolutionNote : null;
-        $supportTicket->resolved_at = $status === 'resolved' ? ($supportTicket->resolved_at ?? now()) : null;
-        $supportTicket->save();
-
-        return redirect()->route('super-admin.dashboard')->with('status', 'Support ticket updated.');
     }
 
     protected function configureTenantConnection(Tenant $tenant): bool
     {
         $database = data_get($tenant->settings, 'database');
 
-        if (! is_array($database) || empty($database['database'])) {
+        if (!is_array($database) || empty($database['database'])) {
             return false;
         }
 
@@ -976,64 +866,55 @@ class SuperAdminController extends Controller
 
     protected function fetchTenantOwnerSummary(Tenant $tenant): array
     {
-        if (! $this->configureTenantConnection($tenant)) {
-            return [
-                'name' => 'N/A',
-                'email' => 'N/A',
-                'users_count' => 0,
-            ];
-        }
+        $databaseName = (string) data_get($tenant->settings, 'database.database', '');
+        $cacheFingerprint = $tenant->updated_at?->timestamp ?: 0;
+        $summaryCacheKey = 'super_admin:tenant_owner_summary:' . $tenant->id . ':' . md5($databaseName . '|' . $cacheFingerprint);
 
-        try {
-            $usersQuery = DB::connection('tenant')->table('users');
-            if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
-                $usersQuery->where('tenant_id', (int) $tenant->id);
+        return Cache::remember($summaryCacheKey, now()->addMinutes(3), function () use ($tenant) {
+            if (!$this->configureTenantConnection($tenant)) {
+                return [
+                    'name' => 'N/A',
+                    'email' => 'N/A',
+                    'users_count' => 0,
+                ];
             }
 
-            $usersCount = (int) $usersQuery->count();
+            try {
+                $hasTenantIdColumn = Schema::connection('tenant')->hasColumn('users', 'tenant_id');
 
-            $ownerQuery = DB::connection('tenant')
-                ->table('users')
-                ->join('model_has_roles', function ($join) {
-                    $join->on('model_has_roles.model_id', '=', 'users.id')
-                        ->where('model_has_roles.model_type', '=', User::class);
-                })
-                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->where('roles.name', 'Owner')
-                ->select('users.name', 'users.email')
-                ->orderBy('users.id');
-
-            if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
-                $ownerQuery->where('users.tenant_id', (int) $tenant->id);
-            }
-
-            $owner = $ownerQuery->first();
-
-            if (! $owner) {
-                $fallbackQuery = DB::connection('tenant')
-                    ->table('users')
-                    ->select('name', 'email')
-                    ->orderBy('id');
-
-                if (Schema::connection('tenant')->hasColumn('users', 'tenant_id')) {
-                    $fallbackQuery->where('tenant_id', (int) $tenant->id);
+                $usersBaseQuery = DB::connection('tenant')->table('users');
+                if ($hasTenantIdColumn) {
+                    $usersBaseQuery->where('users.tenant_id', (int) $tenant->id);
                 }
 
-                $owner = $fallbackQuery->first();
-            }
+                $usersCount = (int) (clone $usersBaseQuery)->count();
 
-            return [
-                'name' => is_string($owner?->name ?? null) && trim((string) $owner->name) !== '' ? (string) $owner->name : 'N/A',
-                'email' => is_string($owner?->email ?? null) && trim((string) $owner->email) !== '' ? (string) $owner->email : 'N/A',
-                'users_count' => $usersCount,
-            ];
-        } catch (\Throwable) {
-            return [
-                'name' => 'N/A',
-                'email' => 'N/A',
-                'users_count' => 0,
-            ];
-        }
+                $owner = (clone $usersBaseQuery)
+                    ->leftJoin('model_has_roles', function ($join) {
+                        $join->on('model_has_roles.model_id', '=', 'users.id')
+                            ->where('model_has_roles.model_type', '=', User::class);
+                    })
+                    ->leftJoin('roles', function ($join) {
+                        $join->on('roles.id', '=', 'model_has_roles.role_id');
+                    })
+                    ->select('users.name', 'users.email')
+                    ->orderByRaw("CASE WHEN roles.name = 'Owner' THEN 0 ELSE 1 END")
+                    ->orderBy('users.id')
+                    ->first();
+
+                return [
+                    'name' => is_string($owner?->name ?? null) && trim((string) $owner->name) !== '' ? (string) $owner->name : 'N/A',
+                    'email' => is_string($owner?->email ?? null) && trim((string) $owner->email) !== '' ? (string) $owner->email : 'N/A',
+                    'users_count' => $usersCount,
+                ];
+            } catch (\Throwable) {
+                return [
+                    'name' => 'N/A',
+                    'email' => 'N/A',
+                    'users_count' => 0,
+                ];
+            }
+        });
     }
 
     protected function resolveBandwidthUsage(Tenant $tenant): string
@@ -1078,7 +959,7 @@ class SuperAdminController extends Controller
             return (int) round($bytes);
         }
 
-        if (! is_string($candidate)) {
+        if (!is_string($candidate)) {
             return null;
         }
 
@@ -1102,7 +983,7 @@ class SuperAdminController extends Controller
             'TB' => 1024 ** 4,
         ];
 
-        if (! array_key_exists($unit, $multipliers)) {
+        if (!array_key_exists($unit, $multipliers)) {
             return null;
         }
 
@@ -1126,6 +1007,11 @@ class SuperAdminController extends Controller
             $unitIndex++;
         }
 
-        return number_format($value, 2).' '.$units[$unitIndex];
+        return number_format($value, 2) . ' ' . $units[$unitIndex];
+    }
+
+    protected function generateStrongPassword(int $length = 12): string
+    {
+        return Str::random($length);
     }
 }
