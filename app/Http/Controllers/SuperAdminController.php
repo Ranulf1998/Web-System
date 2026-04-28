@@ -109,6 +109,23 @@ class SuperAdminController extends Controller
 
     public function dashboard(GitHubReleaseService $releaseService): View
     {
+        // Batch load all permissions needed for dashboard to avoid N+1 queries
+        $permissionNames = [
+            'use pos',
+            'create orders',
+            'process payments',
+            'manage brewing orders',
+            'view products',
+            'view brewing guides',
+            'manage products',
+            'view reports',
+            'manage users',
+            'delete users'
+        ];
+        $permissions = Permission::whereIn('name', $permissionNames)
+            ->where('guard_name', 'web')
+            ->get()
+            ->keyBy('name');
         abort_unless(auth()->check() && auth()->user()->tenant_id === null, 403);
 
         $safeTableCount = static function (string $table): int {
@@ -347,6 +364,7 @@ class SuperAdminController extends Controller
             return is_int($tenant->display_bandwidth_bytes) ? $tenant->display_bandwidth_bytes : 0;
         });
 
+        // Cache expensive dashboard metrics for 60 seconds to reduce DB load and avoid timeouts
         $stats = [
             'tenants' => (int) $currentTenants->count(),
             'pending_registrations' => (int) $currentTenants->filter(function (Tenant $tenant) {
@@ -356,18 +374,18 @@ class SuperAdminController extends Controller
             'inactive_subscriptions' => $inactiveSubscriptionsCount,
             'expiring_soon' => (int) $expiringSoon->count(),
             'estimated_mrr' => $estimatedMrr,
-            'tenant_users' => $tenantUsersTotal,
-            'super_admins' => User::whereNull('tenant_id')->count(),
-            'orders' => $safeTenantMetricCount('orders', static fn(): int => Order::count()),
-            'products' => $safeTenantMetricCount('products', static fn(): int => Product::count()),
+            'tenant_users' => \Cache::remember('dashboard_tenant_users', 60, fn() => (int) $currentTenants->sum(fn(Tenant $tenant) => (int) ($tenant->display_users_count ?? 0))),
+            'super_admins' => \Cache::remember('dashboard_super_admins', 60, fn() => User::whereNull('tenant_id')->count()),
+            'orders' => \Cache::remember('dashboard_orders', 60, fn() => $safeTenantMetricCount('orders', static fn(): int => Order::count())),
+            'products' => \Cache::remember('dashboard_products', 60, fn() => $safeTenantMetricCount('products', static fn(): int => Product::count())),
             'sales_total' => $subscriptionSalesTotal,
             'total_database_bytes' => $totalDatabaseBytes,
             'total_bandwidth_bytes' => $totalBandwidthBytes,
             'total_bandwidth_usage' => $this->formatBytes((float) $totalBandwidthBytes),
-            'failed_jobs' => $safeTableCount('failed_jobs'),
-            'pending_jobs' => $safeTableCount('jobs'),
-            'activity_logs' => $safeTableCount('activity_logs'),
-            'support_tickets' => $safeTableCount('support_tickets'),
+            'failed_jobs' => \Cache::remember('dashboard_failed_jobs', 60, fn() => $safeTableCount('failed_jobs')),
+            'pending_jobs' => \Cache::remember('dashboard_pending_jobs', 60, fn() => $safeTableCount('jobs')),
+            'activity_logs' => \Cache::remember('dashboard_activity_logs', 60, fn() => $safeTableCount('activity_logs')),
+            'support_tickets' => \Cache::remember('dashboard_support_tickets', 60, fn() => $safeTableCount('support_tickets')),
         ];
 
         $centralAdmins = User::query()
@@ -420,6 +438,7 @@ class SuperAdminController extends Controller
             'supportTickets' => $supportTickets,
             'versionInfo' => $versionInfo,
             'releases' => $releaseList,
+            'permissions' => $permissions,
         ]);
     }
 

@@ -27,6 +27,7 @@ use Illuminate\Support\Facades\Route;
 
 // Force all central domain routes to use only 'localhost' for session consistency
 Route::domain('localhost')->group(function () {
+    Route::resource('modules', \App\Http\Controllers\ModuleController::class);
     Route::get('/', function () {
         return view('welcome');
     })->name('home');
